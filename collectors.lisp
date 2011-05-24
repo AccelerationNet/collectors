@@ -17,7 +17,9 @@
 (in-package :collectors)
 
 (defun make-string-builder (&optional
-                            delimiter (ignore-empty-strings-and-nil t))
+                            delimiter
+                            (ignore-empty-strings-and-nil t)
+                            (pretty nil))
   "Create a function that will build up a string for you
    Each call to the function with arguments appends those arguments to the string
    with an optional delimiter between them.
@@ -27,15 +29,22 @@
 
    A call to the function with no arguments returns the output string"
   (let ((s (make-string-output-stream))
+        (*print-pretty* pretty)
         (printed? nil))
+    (setf delimiter
+          (typecase delimiter
+            ((or null string) delimiter)
+            (t  (princ-to-string delimiter))))
     (flet ((p (item)
              (when (or (null ignore-empty-strings-and-nil)
-                       (and item
-                            (setf item (princ-to-string item))
-                            (> (length item) 0)))
+                       item)
                (when (and printed? delimiter)
-                 (princ delimiter s))
-               (princ item s)
+                 (write-sequence delimiter s))
+               (typecase item
+                 (string (when (or (null ignore-empty-strings-and-nil)
+                                   (plusp (length item)))
+                           (write-sequence item s)))
+                 (T (princ item s)))
                (setf printed? t))))
       (lambda (&rest args)
         (if args
