@@ -13,7 +13,7 @@
   :licence "BSD"
   :version "0.1"
   :components ((:file "collectors"))
-  :depends-on ())
+  :depends-on (:alexandria))
 
 (defsystem :collectors-test
   :description "A library providing various collector type macros
@@ -28,7 +28,7 @@
 (defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :collectors))))
   (asdf:oos 'asdf:load-op :collectors-test))
 
-;; Copyright (c) 2002-2006, Edward Marco Baringer
+;; Copyright (c) 2002-2006, Edward Marco Baringer (from arnesi lib)
 ;;               2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
 ;; All rights reserved.
 ;;

@@ -16,8 +16,6 @@
 
 (in-package :collectors)
 
-(defun ensure-list (l) (if (listp l) l (list l)))
-
 (defun make-string-builder (&optional
                             delimiter (ignore-empty-strings-and-nil t))
   "Create a function that will build up a string for you
@@ -48,7 +46,7 @@
                                &body body)
   "A macro that creates a string builder with name in scope during the
    duration of the env"
-  (let ((it (gensym "IT")))
+  (alexandria:with-unique-names (it)
     `(let ((,it (make-string-builder ,delimiter ,ignore-empty-strings-and-nil)))
       (flet ((,name (&rest items) (apply ,it items)))
         ,@body))))
@@ -100,7 +98,7 @@ Example:
                         &body body)
   "Locally bind NAME to a reducing function. The arguments
 FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
-  (let ((reducer (gensym "REDUCER")))
+  (alexandria:with-unique-names (reducer)
     `(let ((,reducer (make-reducer ,function ,@(list initial-value))))
        (flet ((,name (&rest items)
                 (if items
@@ -146,7 +144,7 @@ current list of values."
     (lambda (&rest items)
       ;; flatten one level and append lists for appender
       (setf items (apply #'append
-		   (mapcar #'ensure-list items)))
+		   (mapcar #'alexandria:ensure-list items)))
       (apply collector items))))
 
 (defun make-pusher (&optional initial-value)
@@ -165,7 +163,7 @@ current list of values."
   FROM-END is true the collector will actually be a pusher, (see
   MAKE-PUSHER), otherwise NAME will be bound to a collector,
   (see MAKE-COLLECTOR)."
-  (let ((appender (gensym "APPENDER")))
+  (alexandria:with-unique-names (appender)
     `(let ((,appender (make-appender ,initial-value)))
        (flet ((,name (&rest items)
 		(apply ,appender items)))
@@ -176,7 +174,7 @@ current list of values."
   FROM-END is true the collector will actually be a pusher, (see
   MAKE-PUSHER), otherwise NAME will be bound to a collector,
   (see MAKE-COLLECTOR)."
-  (let ((collector (gensym "COLLECTOR")))
+  (alexandria:with-unique-names (collector)
     `(let ((,collector ,(if from-end
                             `(make-pusher ,initial-value)
                             `(make-collector ,initial-value))))
@@ -188,7 +186,7 @@ current list of values."
   "Bind multiple collectors. Each element of NAMES should be a
   list as per WITH-COLLECTOR's first orgument."
   (if names
-      `(with-collector ,(ensure-list (car names))
+      `(with-collector ,(alexandria:ensure-list (car names))
          (with-collectors ,(cdr names) ,@body))
       `(progn ,@body)))
 
