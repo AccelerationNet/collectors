@@ -12,7 +12,10 @@
    #:with-appender
    #:make-appender
    #:with-string-builder
-   #:make-string-builder))
+   #:make-string-builder
+   #:with-mapping-collector
+   #:with-mapping-appender
+   ))
 
 (in-package :collectors)
 
@@ -198,6 +201,41 @@ current list of values."
       `(with-collector ,(alexandria:ensure-list (car names))
          (with-collectors ,(cdr names) ,@body))
       `(progn ,@body)))
+
+;;;; Mapping collectors
+(defmacro with-mapping-collector ((name fn-args &body fn-body)
+                                  &body body)
+  "Like a with-collector, but instead of a name we take a function spec
+
+   if you call the resultant function with no arguments, you get the
+     collection so far
+   if you call it with arguments the results of calling your function spec are
+     collected "
+  (alexandria:with-unique-names (col flet-args)
+    `(let ((,col (make-collector)))
+      (flet ((,name (&rest ,flet-args)
+               (if ,flet-args
+                   (funcall ,col (apply (lambda ,fn-args ,@fn-body)
+                                ,flet-args))
+                   (funcall ,col))))
+        ,@body))))
+
+(defmacro with-mapping-appender ((name fn-args &body fn-body)
+                                 &body body)
+  "Like a with-appender, but instead of a name we take a function spec
+
+   if you call the resultant function with no arguments, you get the
+     collection so far
+   if you call it with arguments the results of calling your function spec are
+     collected "
+  (alexandria:with-unique-names (col flet-args)
+    `(let ((,col (make-appender)))
+      (flet ((,name (&rest ,flet-args)
+               (if ,flet-args
+                   (funcall ,col (apply (lambda ,fn-args ,@fn-body)
+                                        ,flet-args))
+                   (funcall ,col))))
+        ,@body))))
 
 ;; Copyright (c) 2002-2006, Edward Marco Baringer
 ;; All rights reserved.

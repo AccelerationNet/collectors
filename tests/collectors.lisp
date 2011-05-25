@@ -62,4 +62,24 @@
         (test)
      )))
 
+(define-test with-mapping-collector
+  (with-mapping-collector (test (&rest nums)
+                            (apply #'+ nums))
+    (test 1)
+    (test 1 2)
+    (test 1 2 3)
+    (test 1 2 3 4)
+    (assert-equal '(1 3 6 10) (test))))
+
+(define-test with-mapping-appender
+  (with-mapping-appender (test (&rest nums)
+                            (mapcar (lambda (x) (* 2 x)) nums))
+    (test 1)
+    (assert-equal '(2) (test))
+    (test 1 2)
+    (assert-equal '(2 2 4) (test))
+    (test 1 2 3)
+    (test 1 2 3 4)
+    (assert-equal '(2 2 4 2 4 6 2 4 6 8) (test))))
+
 (run-tests)
