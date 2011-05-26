@@ -19,12 +19,41 @@
 
 (define-test with-collector
   (with-collector (test)
-    (test :a :key)
+    (test :a nil :key)
+    (test :and :a)
+    (test :value :make)
+    (test :a :plist)
+    (assert-equal
+        '(:a nil :key :and :a :value :make :a :plist)
+        (test)
+     ))
+  (with-collector (test :collect-nil nil)
+    (test :a nil :key)
     (test :and :a)
     (test :value :make)
     (test :a :plist)
     (assert-equal
         '(:a :key :and :a :value :make :a :plist)
+        (test)
+     )))
+
+(define-test with-collector2
+  (with-collector (test :from-end t)
+    (test :a nil :key)
+    (test :and :a)
+    (test :value :make)
+    (test :a :plist)
+    (assert-equal
+        '(:plist :a :make :value :a :and :key nil :a)
+        (test)
+     ))
+  (with-collector (test :from-end t :collect-nil nil)
+    (test :a nil :key)
+    (test :and :a)
+    (test :value :make)
+    (test :a :plist)
+    (assert-equal
+        '(:plist :a :make :value :a :and :key :a)
         (test)
      )))
 

@@ -123,7 +123,7 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
 ;;;;
 ;;;; Building up a list from multiple values.
 
-(defun make-collector (&optional initial-value)
+(defun make-collector (&optional initial-value (collect-nil t))
   "Create a collector function.
 
 A Collector function will collect, into a list, all the values
@@ -133,6 +133,7 @@ current list of values."
   (let ((value initial-value)
         (cdr (last initial-value)))
     (lambda (&rest items)
+      (unless collect-nil (setf items (delete-if #'null items)))
       (if items
           (progn
             (if value
@@ -159,14 +160,15 @@ current list of values."
 		   (mapcar #'alexandria:ensure-list items)))
       (apply collector items))))
 
-(defun make-pusher (&optional initial-value)
+(defun make-pusher (&optional initial-value (collect-nil t))
   "Create a function which collects values as by PUSH."
   (let ((value initial-value))
     (lambda (&rest items)
       (if items
           (progn
             (dolist (i items)
-              (push i value))
+              (when (or collect-nil i)
+                (push i value)))
             items)
           value))))
 
@@ -181,15 +183,17 @@ current list of values."
 		(apply ,appender items)))
          ,@body))))
 
-(defmacro with-collector ((name &optional initial-value from-end) &body body)
+(defmacro with-collector ((name &key
+                            (collect-nil T)
+                            initial-value from-end) &body body)
   "Bind NAME to a collector function and execute BODY. If
   FROM-END is true the collector will actually be a pusher, (see
   MAKE-PUSHER), otherwise NAME will be bound to a collector,
   (see MAKE-COLLECTOR)."
   (alexandria:with-unique-names (collector)
     `(let ((,collector ,(if from-end
-                            `(make-pusher ,initial-value)
-                            `(make-collector ,initial-value))))
+                            `(make-pusher ,initial-value ,collect-nil)
+                            `(make-collector ,initial-value ,collect-nil))))
        (flet ((,name (&rest items)
 		(apply ,collector items)))
          ,@body))))
