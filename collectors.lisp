@@ -224,7 +224,13 @@ current list of values."
    if you call the resultant function with no arguments, you get the
      collection so far
    if you call it with arguments the results of calling your function spec are
-     collected "
+     collected
+   (with-mapping-collector (col (x) (* 2 x))
+       (col 1)
+       (col 2)
+       (col 3)
+       (col)) => (2 4 6)
+   "
   (alexandria:with-unique-names (col flet-args)
     `(let ((,col (make-collector)))
       (flet ((,name (&rest ,flet-args)
@@ -241,7 +247,13 @@ current list of values."
    if you call the resultant function with no arguments, you get the
      collection so far
    if you call it with arguments the results of calling your function spec are
-     collected "
+     collected
+   (with-mapping-appender (app (l) (mapcar #'(lambda (x) (* 2 x)) l))
+       (app '(1 2))
+       (app '(2 3))
+       (app '(3 4))
+       (app)) => (2 4 4 6 6 8)
+  "
   (alexandria:with-unique-names (col flet-args)
     `(let ((,col (make-appender)))
       (flet ((,name (&rest ,flet-args)
@@ -252,6 +264,7 @@ current list of values."
         ,@body))))
 
 ;; Copyright (c) 2002-2006, Edward Marco Baringer
+;; Copyright (c) 2011, Russ Tyndall, Acceleration.net
 ;; All rights reserved.
 ;;
 ;; Redistribution and use in source and binary forms, with or without
