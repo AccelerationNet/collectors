@@ -186,7 +186,15 @@ current list of values."
   "Bind NAME to a collector function and execute BODY. If
   FROM-END is true the collector will actually be a pusher, (see
   MAKE-PUSHER), otherwise NAME will be bound to a collector,
-  (see MAKE-COLLECTOR)."
+  (see MAKE-COLLECTOR).
+
+    (with-appender (app)
+       (app '(1 2))
+       (app '(2 3))
+       (app '(3 4))
+       (app)) => (1 2 2 3 3 4)
+
+  "
   (alexandria:with-unique-names (appender)
     `(let ((,appender (make-appender ,initial-value)))
        (flet ((,name (&rest items)
@@ -199,7 +207,13 @@ current list of values."
   "Bind NAME to a collector function and execute BODY. If
   FROM-END is true the collector will actually be a pusher, (see
   MAKE-PUSHER), otherwise NAME will be bound to a collector,
-  (see MAKE-COLLECTOR)."
+  (see MAKE-COLLECTOR).
+    (with-collector (col)
+       (col 1)
+       (col 2)
+       (col 3)
+       (col)) => (1 2 3)
+  "
   (alexandria:with-unique-names (collector)
     `(let ((,collector ,(if from-end
                             `(make-pusher ,initial-value ,collect-nil)
