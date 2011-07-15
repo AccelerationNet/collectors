@@ -278,7 +278,7 @@ current list of values."
         ,@body))))
 
 ;; Copyright (c) 2002-2006, Edward Marco Baringer
-;; Copyright (c) 2011, Russ Tyndall, Acceleration.net
+;;               2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
 ;; All rights reserved.
 ;;
 ;; Redistribution and use in source and binary forms, with or without

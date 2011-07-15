@@ -98,3 +98,7 @@ A call to the function with no arguments returns the output string
 
 with-string-builder-output returns the collected string as the value
 of the "with" form
+
+== Authors ==
+ * Marco Baringer - Author of Arnesi
+ * Russ Tyndall, Ryan Davis, Nathan Bird [http://www.acceleration.net Acceleration.net]
