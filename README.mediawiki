@@ -100,5 +100,6 @@ with-string-builder-output returns the collected string as the value
 of the "with" form
 
 == Authors ==
- * Marco Baringer - Author of Arnesi
- * Russ Tyndall, Ryan Davis, Nathan Bird [http://www.acceleration.net Acceleration.net]
+
+* Marco Baringer - Author of Arnesi
+* Russ Tyndall, Ryan Davis, Nathan Bird [http://www.acceleration.net Acceleration.net]
