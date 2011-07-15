@@ -23,19 +23,23 @@ passed to it in the order in which they were passed. If the
 callector function is called without arguments it returns the
 current list of values. 
 
+<pre>
    (with-collector (col)
        (col 1)
        (col 2)
        (col 3)
        (col)) => (1 2 3)
+</pre>
 
 Mapping collectors mutate the collected value while collecting it.
 
+<pre>
    (with-mapping-collector (col (x) (* 2 x))
        (col 1)
        (col 2)
        (col 3)
        (col)) => (2 4 6)
+</pre>
 
 
 === make-reducer / with-reducer ===
@@ -54,11 +58,13 @@ will return the new value.
 If the reducing function is called with no arguments it will
 return the current value.
 
+<pre>
 Example:
  (setf r (make-reducer #'+ 5))
  (funcall r 0) => 5
  (funcall r 1 2) => 8
  (funcall r) => 8
+</pre>
 
 
 === make-appender / with-appender / with-mapping-appender ===
@@ -70,19 +76,23 @@ passed to it in the order in which they were passed. If the
 appender function is called without arguments it returns the
 current list of values.
 
+<pre>
     (with-appender (app)
        (app '(1 2))
        (app '(2 3))
        (app '(3 4))
        (app)) => (1 2 2 3 3 4)
+</pre>
 
 Mapping appenders mutate the collected values while collecting them.
 
+<pre>
    (with-mapping-appender (app (l) (mapcar #'(lambda (x) (* 2 x)) l))
        (app '(1 2))
        (app '(2 3))
        (app '(3 4))
        (app)) => (2 4 4 6 6 8)
+</pre>
 
 
 === make-string-builder / with-string-builder / with-string-builder-output ===
