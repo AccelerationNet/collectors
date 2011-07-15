@@ -6,21 +6,24 @@ easier.
 == Origin Info ==
 
 Much of this code was originally in arnesi, but I often want to use
-these in code that doesnt need to require all of arnesi.
+these in code that doesnt need to require all of arnesi.  Also arnesi 
+is hard to update.
 
 [http://common-lisp.net/project/bese/docs/arnesi/html/Reducing_0020and_0020Collecting.html
  original arnesi docs]
 
 == API ==
 
-=== make-collector / with-collector ===
+=== make-collector / with-collector / with-mapping-collector ===
 
 Create a collector function.
 
 A Collector function will collect, into a list, all the values
 passed to it in the order in which they were passed. If the
 callector function is called without arguments it returns the
-current list of values.
+current list of values. 
+
+Mapping collectors mutate the collected value while collecting it.
 
 
 === make-reducer / with-reducer ===
@@ -46,7 +49,7 @@ Example:
  (funcall r) => 8
 
 
-=== make-appender / with-appender ===
+=== make-appender / with-appender / with-mapping-appender ===
 
 Create an appender function.
 
@@ -55,13 +58,19 @@ passed to it in the order in which they were passed. If the
 appender function is called without arguments it returns the
 current list of values.
 
-=== make-string-builder / with-string-builder ===
+Mapping appenders mutate the collected values while collecting them.
+
+
+=== make-string-builder / with-string-builder / with-string-builder-output ===
 
 Create a function that will build up a string for you Each call to the
 function with arguments appends those arguments to the string with an
 optional delimiter between them.
 
-if ignore-empty-strings-and-nil is true neither empty strings nor nil will be
-printed to the stream
+if ignore-empty-strings-and-nil is true neither empty strings nor nil
+will be printed to the stream
 
 A call to the function with no arguments returns the output string
+
+with-string-builder-output returns the collected string as the value
+of the "with" form
