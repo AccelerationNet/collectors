@@ -12,6 +12,7 @@
    #:with-appender
    #:make-appender
    #:with-string-builder
+   #:with-string-builder-output
    #:make-string-builder
    #:with-mapping-collector
    #:with-mapping-appender
@@ -62,6 +63,15 @@
     `(let ((,it (make-string-builder ,delimiter ,ignore-empty-strings-and-nil)))
       (flet ((,name (&rest items) (apply ,it items)))
         ,@body))))
+
+(defmacro with-string-builder-output ((name &key delimiter (ignore-empty-strings-and-nil t))
+                                           &body body)
+  "A macro that creates a string builder with name in scope during the
+   duration of the env, the form returns the string that is built"
+  `(with-string-builder (,name :delimiter ,delimiter
+                               :ignore-empty-strings-and-nil ,ignore-empty-strings-and-nil)
+    ,@body
+    (,name)))
 
 ;;;; * Reducing and Collecting
 
