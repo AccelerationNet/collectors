@@ -42,7 +42,7 @@
             (t  (princ-to-string delimiter))))
     (flet ((p (item)
              (let ((item (typecase item
-                           (string item)
+                           ((or null string) item)
                            (T (princ-to-string item)))))
                (when (or print-empty? (and item (plusp (length item))))
                  (when (and printed? delimiter) (write-sequence delimiter s))
