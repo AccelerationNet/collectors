@@ -34,22 +34,20 @@
    A call to the function with no arguments returns the output string"
   (let ((s (make-string-output-stream))
         (*print-pretty* pretty)
-        (printed? nil))
+        (printed? nil)
+        (print-empty? (null ignore-empty-strings-and-nil)))
     (setf delimiter
           (typecase delimiter
             ((or null string) delimiter)
             (t  (princ-to-string delimiter))))
     (flet ((p (item)
-             (when (or (null ignore-empty-strings-and-nil)
-                       item)
-               (when (and printed? delimiter)
-                 (write-sequence delimiter s))
-               (typecase item
-                 (string (when (or (null ignore-empty-strings-and-nil)
-                                   (plusp (length item)))
-                           (write-sequence item s)))
-                 (T (princ item s)))
-               (setf printed? t))))
+             (let ((item (typecase item
+                           (string item)
+                           (T (princ-to-string item)))))
+               (when (or print-empty? (and item (plusp (length item))))
+                 (when (and printed? delimiter) (write-sequence delimiter s))
+                 (write-sequence item s)
+                 (setf printed? t)))))
       (lambda (&rest args)
         (if args
             (mapc #'p args)
