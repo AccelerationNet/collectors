@@ -4,6 +4,7 @@
   (:use :cl :cl-user)
   (:export
    #:with-collector
+   #:with-collector-output
    #:with-collectors
    #:make-collector
    #:make-pusher
@@ -226,6 +227,14 @@ current list of values."
        (flet ((,name (&rest items)
 		(apply ,collector items)))
          ,@body))))
+
+(defmacro with-collector-output ((name &key (collect-nil t) initial-value from-end)
+                                 &body body)
+  `(with-collector (,name :collect-nil ,collect-nil
+                          :initial-value ,initial-value
+                          :from-end ,from-end)
+    ,@body
+    (,name)))
 
 (defmacro with-collectors (names &body body)
   "Bind multiple collectors. Each element of NAMES should be a
