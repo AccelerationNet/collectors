@@ -10,6 +10,7 @@
    #:with-reducer
    #:make-reducer
    #:with-appender
+   #:with-appender-output
    #:make-appender
    #:with-string-builder
    #:with-string-builder-output
@@ -198,6 +199,12 @@ current list of values."
        (flet ((,name (&rest items)
 		(apply ,appender items)))
          ,@body))))
+
+(defmacro with-appender-output ((name &optional initial-value) &body body)
+  "Same as with-appender, but this form returns the collected values
+   automatically
+  "
+  `(with-appender (,name ,initial-value) ,@body (,name)))
 
 (defmacro with-collector ((name &key
                             (collect-nil T)
