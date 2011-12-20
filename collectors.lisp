@@ -53,7 +53,13 @@
       (lambda (&rest args)
         (if args
             (mapc #'p args)
-            (get-output-stream-string s))))))
+            ;; todo: this seems pretty hacky, but I would like to maintain the interface
+            ;; of all the other collectors (of being able to access intermediate output
+            ;; repeatedly), so for now I guess this is it.  Should test to see if
+            ;; writing / coercing an array is faster or slower
+            (let ((so-far (get-output-stream-string s)))
+              (write-string so-far s)
+              so-far))))))
 
 (defmacro with-string-builder ((name &key delimiter (ignore-empty-strings-and-nil t))
                                &body body)
