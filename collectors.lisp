@@ -34,7 +34,7 @@
    printed to the stream
 
    A call to the function with no arguments returns the output string"
-  (let ((s (make-string-output-stream))
+  (let ((arr (make-array 100 :element-type 'character :fill-pointer 0))
         (*print-pretty* pretty)
         (printed? nil)
         (print-empty? (null ignore-empty-strings-and-nil)))
@@ -43,23 +43,18 @@
             ((or null string) delimiter)
             (t  (princ-to-string delimiter))))
     (flet ((p (item)
-             (let ((item (typecase item
-                           ((or null string) item)
-                           (T (princ-to-string item)))))
-               (when (or print-empty? (and item (plusp (length item))))
-                 (when (and printed? delimiter) (write-sequence delimiter s))
-                 (write-sequence item s)
-                 (setf printed? t)))))
+             (with-output-to-string (s arr)
+               (let ((item (typecase item
+                             ((or null string) item)
+                             (T (princ-to-string item)))))
+                 (when (or print-empty? (and item (plusp (length item))))
+                   (when (and printed? delimiter) (write-sequence delimiter s))
+                   (write-sequence item s)
+                   (setf printed? t))))))
       (lambda (&rest args)
         (if args
             (mapc #'p args)
-            ;; todo: this seems pretty hacky, but I would like to maintain the interface
-            ;; of all the other collectors (of being able to access intermediate output
-            ;; repeatedly), so for now I guess this is it.  Should test to see if
-            ;; writing / coercing an array is faster or slower
-            (let ((so-far (get-output-stream-string s)))
-              (write-string so-far s)
-              so-far))))))
+            (coerce arr 'string))))))
 
 (defmacro with-string-builder ((name &key delimiter (ignore-empty-strings-and-nil t))
                                &body body)
