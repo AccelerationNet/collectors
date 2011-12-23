@@ -1,20 +1,20 @@
-= Collectors = 
+# Collectors
 
 A small collection of common lisp macros to make collecting values
 easier.
 
-== Origin Info ==
+## Origin Info
 
 Much of this code was originally in arnesi, but I often want to use
 these in code that doesnt need to require all of arnesi.  Also arnesi 
 is hard to update.
 
-[http://common-lisp.net/project/bese/docs/arnesi/html/Reducing_0020and_0020Collecting.html
- original arnesi docs]
+[original arnesi docs](http://common-lisp.net/project/bese/docs/arnesi/html/Reducing_0020and_0020Collecting.html
+ 
 
-== API ==
+## API 
 
-=== make-collector / with-collector / with-mapping-collector ===
+### make-collector / with-collector / with-mapping-collector
 
 Create a collector function.
 
@@ -23,26 +23,26 @@ passed to it in the order in which they were passed. If the
 callector function is called without arguments it returns the
 current list of values. 
 
-<pre>
+```
    (with-collector (col)
        (col 1)
        (col 2)
        (col 3)
        (col)) => (1 2 3)
-</pre>
+```
 
 Mapping collectors mutate the collected value while collecting it.
 
-<pre>
+```
    (with-mapping-collector (col (x) (* 2 x))
        (col 1)
        (col 2)
        (col 3)
        (col)) => (2 4 6)
-</pre>
+```
 
 
-=== make-reducer / with-reducer ===
+### make-reducer / with-reducer
 
 Create a function which, starting with INITIAL-VALUE, reduces
 any other values into a single final value.
@@ -58,16 +58,16 @@ will return the new value.
 If the reducing function is called with no arguments it will
 return the current value.
 
-<pre>
+```
 Example:
  (setf r (make-reducer #'+ 5))
  (funcall r 0) => 5
  (funcall r 1 2) => 8
  (funcall r) => 8
-</pre>
+```
 
 
-=== make-appender / with-appender / with-mapping-appender ===
+### make-appender / with-appender / with-mapping-appender
 
 Create an appender function.
 
@@ -76,26 +76,26 @@ passed to it in the order in which they were passed. If the
 appender function is called without arguments it returns the
 current list of values.
 
-<pre>
+```
     (with-appender (app)
        (app '(1 2))
        (app '(2 3))
        (app '(3 4))
        (app)) => (1 2 2 3 3 4)
-</pre>
+```
 
 Mapping appenders mutate the collected values while collecting them.
 
-<pre>
+```
    (with-mapping-appender (app (l) (mapcar #'(lambda (x) (* 2 x)) l))
        (app '(1 2))
        (app '(2 3))
        (app '(3 4))
        (app)) => (2 4 4 6 6 8)
-</pre>
+```
 
 
-=== make-string-builder / with-string-builder / with-string-builder-output ===
+### make-string-builder / with-string-builder / with-string-builder-output
 
 Create a function that will build up a string for you Each call to the
 function with arguments appends those arguments to the string with an
@@ -109,14 +109,15 @@ A call to the function with no arguments returns the output string
 with-string-builder-output returns the collected string as the value
 of the "with" form
 
-== Authors ==
+## Authors
+
 * Marco Baringer - Author of Arnesi
 * [http://www.acceleration.net/ Acceleration.net] - [http://www.acceleration.net/programming/donate-to-acceleration-net/ Donate]
 ** [http://russ.unwashedmeme.com/blog Russ Tyndall]
 ** [http://the.unwashedmeme.com/blog Nathan Bird]
 ** [http://ryepup.unwashedmeme.com/blog Ryan Davis]
 
-<pre>
+```
 ;; Copyright (c) 2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
 ;; All rights reserved.
 ;;
@@ -142,4 +143,4 @@ of the "with" form
 ;; THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 ;; (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 ;; OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-</pre>
+```
