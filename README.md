@@ -111,11 +111,11 @@ of the "with" form
 
 ## Authors
 
-* Marco Baringer - Author of Arnesi
-* [Acceleration.net](http://www.acceleration.net/) - [Donate](http://www.acceleration.net/programming/donate-to-acceleration-net/)
-** [Russ Tyndall](http://russ.unwashedmeme.com/blog)
-** [Nathan Bird](http://the.unwashedmeme.com/blog)
-** [Ryan Davis](http://ryepup.unwashedmeme.com/blog)
+ * Marco Baringer - Author of Arnesi
+ * [Acceleration.net](http://www.acceleration.net/) - [Donate](http://www.acceleration.net/programming/donate-to-acceleration-net/)
+  * [Russ Tyndall](http://russ.unwashedmeme.com/blog)
+  * [Nathan Bird](http://the.unwashedmeme.com/blog)
+  * [Ryan Davis](http://ryepup.unwashedmeme.com/blog)
 
 ```
 ;; Copyright (c) 2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
