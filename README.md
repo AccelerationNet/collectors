@@ -9,7 +9,7 @@ Much of this code was originally in arnesi, but I often want to use
 these in code that doesnt need to require all of arnesi.  Also arnesi 
 is hard to update.
 
-[original arnesi docs](http://common-lisp.net/project/bese/docs/arnesi/html/Reducing_0020and_0020Collecting.html
+[original arnesi docs](http://common-lisp.net/project/bese/docs/arnesi/html/Reducing_0020and_0020Collecting.html)
  
 
 ## API 
@@ -112,10 +112,10 @@ of the "with" form
 ## Authors
 
 * Marco Baringer - Author of Arnesi
-* [http://www.acceleration.net/ Acceleration.net] - [http://www.acceleration.net/programming/donate-to-acceleration-net/ Donate]
-** [http://russ.unwashedmeme.com/blog Russ Tyndall]
-** [http://the.unwashedmeme.com/blog Nathan Bird]
-** [http://ryepup.unwashedmeme.com/blog Ryan Davis]
+* [Acceleration.net](http://www.acceleration.net/) - [Donate](http://www.acceleration.net/programming/donate-to-acceleration-net/)
+** [Russ Tyndall](http://russ.unwashedmeme.com/blog)
+** [Nathan Bird](http://the.unwashedmeme.com/blog)
+** [Ryan Davis](http://ryepup.unwashedmeme.com/blog)
 
 ```
 ;; Copyright (c) 2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
