@@ -34,23 +34,35 @@
    printed to the stream
 
    A call to the function with no arguments returns the output string"
-  (let ((arr (make-array 100 :element-type 'character :fill-pointer 0))
+  (let ((arr (make-array 100
+                         :element-type 'character :fill-pointer 0
+                         :adjustable T))
         (*print-pretty* pretty)
         (printed? nil)
-        (print-empty? (null ignore-empty-strings-and-nil)))
-    (setf delimiter
+        (print-empty? (null ignore-empty-strings-and-nil))
+        (delimiter
           (typecase delimiter
             ((or null string) delimiter)
-            (t  (princ-to-string delimiter))))
-    (flet ((p (item)
-             (with-output-to-string (s arr)
-               (let ((item (typecase item
-                             ((or null string) item)
-                             (T (princ-to-string item)))))
-                 (when (or print-empty? (and item (plusp (length item))))
-                   (when (and printed? delimiter) (write-sequence delimiter s))
-                   (write-sequence item s)
-                   (setf printed? t))))))
+            (t (princ-to-string delimiter)))))
+    (labels ((coerce-it (item)
+               (typecase item
+                 ((or null string character) item)
+                 (T (princ-to-string item))))
+             (write-it (item s)
+               (typecase item
+                 (character (write-char item s))
+                 (string (write-sequence item s))))
+             (not-empty? (item)
+               (and item (typecase item
+                           (string (plusp (length item)))
+                           (character t))))
+             (p (item &aux (item (coerce-it item)))
+               (with-output-to-string (s arr)
+                 (when (or print-empty? (not-empty? item))
+                   (when (and printed? delimiter)
+                     (write-sequence delimiter s))
+                   (write-it item s)
+                   (setf printed? t)))))
       (lambda (&rest args)
         (if args
             (mapc #'p args)
