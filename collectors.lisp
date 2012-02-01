@@ -193,7 +193,7 @@ current list of values."
          (with-collectors ,(cdr names) ,@body))
       `(progn ,@body)))
 
-(defun make-formatter (&key delimiter stream)
+(defun make-formatter (&key delimiter stream pretty)
   "Create a string formatter collector function.
 
 creates a (lambda &optional format-string &rest args) and collects these in a list
@@ -201,7 +201,7 @@ When called with no args, returns the concatenated (with delimiter) results
 
 binds *print-pretty* to nil
 "
-  (let* (*print-pretty*
+  (let* ((*print-pretty* pretty)
          (format-string (if delimiter
                             (format nil "~~{~~?~~^~a~~}" delimiter)
                             "~{~?~}")))
@@ -209,79 +209,35 @@ binds *print-pretty* to nil
       (lambda (&rest args)
         (cond
           ((null args)
-           (let (*print-pretty*)
+           (let ((*print-pretty* pretty))
              (format stream format-string (value))))
           (args
            (destructuring-bind (format-string &rest args) args
                (value format-string args))))
         ))))
 
-(defmacro with-formatter ((name &key delimiter stream) &body body)
+(defmacro with-formatter ((name &key delimiter stream pretty) &body body)
   "A macro makes a function with name for body that is a string formatter
 see make-formatter"
   (alexandria:with-unique-names (fn-sym)
-    `(let ((,fn-sym (make-formatter :delimiter ,delimiter :stream ,stream)))
+    `(let ((,fn-sym (make-formatter :delimiter ,delimiter :stream ,stream
+                                    :pretty ,pretty)))
        (flet ((,name (&rest args) (apply ,fn-sym args)))
          ,@body))))
 
-(defmacro with-formatter-output ((name &key delimiter stream) &body body)
+(defmacro with-formatter-output ((name &key delimiter stream pretty) &body body)
   "A macro makes a function with name for body that is a string formatter
 see make-formatter.
 This form returns the result of that formatter"
-  `(with-formatter (,name :delimiter ,delimiter :stream ,stream )
+  `(with-formatter (,name :delimiter ,delimiter :stream ,stream :pretty ,pretty)
      ,@body
      (,name)))
 
-(defun make-string-builder-old (&optional
-                            delimiter
-                            (ignore-empty-strings-and-nil t)
-                            (pretty nil))
-  "Create a function that will build up a string for you
-   Each call to the function with arguments appends those arguments to the string
-   with an optional delimiter between them.
-
-   if ignore-empty-strings-and-nil is true neither empty strings nor nil will be
-   printed to the stream
-
-   A call to the function with no arguments returns the output string"
-  (let ((arr (make-array 100
-                         :element-type 'character :fill-pointer 0
-                         :adjustable T))
-        (*print-pretty* pretty)
-        (printed? nil)
-        (print-empty? (null ignore-empty-strings-and-nil))
-        (delimiter
-          (typecase delimiter
-            ((or null string) delimiter)
-            (t (princ-to-string delimiter)))))
-    (labels ((coerce-it (item)
-               (typecase item
-                 ((or null string character) item)
-                 (T (princ-to-string item))))
-             (write-it (item s)
-               (typecase item
-                 (character (write-char item s))
-                 (string (write-sequence item s))))
-             (not-empty? (item)
-               (and item (typecase item
-                           (string (plusp (length item)))
-                           (character t))))
-             (p (item &aux (item (coerce-it item)))
-               (with-output-to-string (s arr)
-                 (when (or print-empty? (not-empty? item))
-                   (when (and printed? delimiter)
-                     (write-sequence delimiter s))
-                   (write-it item s)
-                   (setf printed? t)))))
-      (lambda (&rest args)
-        (declare (dynamic-extent args))
-        (if args
-            (mapc #'p args)
-            (coerce arr 'string))))))
-
-(defun make-string-builder (&optional
+(defun make-string-builder (&key
                               delimiter
-                              (ignore-empty-strings-and-nil t))
+                              (ignore-empty-strings-and-nil t)
+                              pretty
+                              stream)
   "Create a function that will build up a string for you
    Each call to the function with arguments appends those arguments to the string
    with an optional delimiter between them.
@@ -290,7 +246,7 @@ This form returns the result of that formatter"
    printed to the stream
 
    A call to the function with no arguments returns the output string"
-  (let ((formatter (make-formatter :delimiter delimiter))
+  (let ((formatter (make-formatter :delimiter delimiter :pretty pretty :stream stream))
         (include-empty? (not ignore-empty-strings-and-nil)))
     (flet ((include-arg? (arg)
              (or include-empty?
@@ -305,20 +261,27 @@ This form returns the result of that formatter"
                     do (apply formatter (list "~A" arg)))
             (funcall formatter))))))
 
-(defmacro with-string-builder ((name &key delimiter (ignore-empty-strings-and-nil t))
+(defmacro with-string-builder ((name &key delimiter
+                                     (ignore-empty-strings-and-nil t)
+                                     stream)
                                &body body)
   "A macro that creates a string builder with name in scope during the
    duration of the env"
   (alexandria:with-unique-names (it)
-    `(let ((,it (make-string-builder ,delimiter ,ignore-empty-strings-and-nil)))
+    `(let ((,it (make-string-builder
+                 :delimiter ,delimiter
+                 :ignore-empty-strings-and-nil ,ignore-empty-strings-and-nil
+                 :stream ,stream)))
       (flet ((,name (&rest items) (apply ,it items)))
         ,@body))))
 
-(defmacro with-string-builder-output ((name &key delimiter (ignore-empty-strings-and-nil t))
+(defmacro with-string-builder-output ((name &key delimiter (ignore-empty-strings-and-nil t)
+                                            stream)
                                            &body body)
   "A macro that creates a string builder with name in scope during the
    duration of the env, the form returns the string that is built"
   `(with-string-builder (,name :delimiter ,delimiter
+                               :stream ,stream
                                :ignore-empty-strings-and-nil ,ignore-empty-strings-and-nil)
     ,@body
     (,name)))
