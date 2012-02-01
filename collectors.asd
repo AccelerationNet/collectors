@@ -26,7 +26,9 @@
   :depends-on (:collectors :lisp-unit))
 
 (defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :collectors))))
-  (asdf:oos 'asdf:load-op :collectors-test))
+  (asdf:oos 'asdf:load-op :collectors-test)
+  (let ((*package* (find-package :collectors-test)))
+    (eval (read-from-string "(run-tests)"))))
 
 ;; Copyright (c) 2002-2006, Edward Marco Baringer (from arnesi lib)
 ;;               2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
