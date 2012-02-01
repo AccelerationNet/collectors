@@ -121,14 +121,13 @@ current list of values."
 
 (defun make-pusher (&optional initial-value (collect-nil t))
   "Create a function which collects values as by PUSH."
-  (let ((value initial-value))
+  (let ((value (copy-list initial-value)))
     (lambda (&rest items)
+      (declare (dynamic-extent items))
       (if items
-          (progn
-            (dolist (i items)
-              (when (or collect-nil i)
-                (push i value)))
-            items)
+          (dolist (i items)
+            (when (or collect-nil i)
+              (push i value)))
           value))))
 
 (defmacro with-appender ((name &optional initial-value) &body body)
