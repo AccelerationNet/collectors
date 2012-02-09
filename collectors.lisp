@@ -263,12 +263,14 @@ This form returns the result of that formatter"
                                &body body)
   "A macro that creates a string builder with name in scope during the
    duration of the env"
-  (alexandria:with-unique-names (it)
+  (alexandria:with-unique-names (it items)
     `(let ((,it (make-string-builder
                  :delimiter ,delimiter
                  :ignore-empty-strings-and-nil ,ignore-empty-strings-and-nil
                  :stream ,stream)))
-      (flet ((,name (&rest items) (apply ,it items)))
+      (declare (type function ,it))
+      (flet ((,name (&rest ,items)
+               (declare (dynamic-extent ,items)) (apply ,it ,items)))
         ,@body))))
 
 (defmacro with-string-builder-output ((name &key delimiter (ignore-empty-strings-and-nil t)
