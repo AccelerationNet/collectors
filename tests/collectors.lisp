@@ -91,6 +91,22 @@
         (test)
      )))
 
+(define-test with-formatter
+  (with-formatter (test)
+    (test "~D ~D ~D" 0 0 0)
+    (test "~A" 1)
+    (test "~A" 2)
+    (test "~A" 3)
+    (test "ABC")
+    (assert-equal "0 0 0123ABC" (test)))
+  (with-formatter (test :delimiter "-")
+    (test "~D ~D ~D" 0 0 0)
+    (test "~A" 1)
+    (test "~A" 2)
+    (test "~A" 3)
+    (test "ABC")
+    (assert-equal "0 0 0-1-2-3-ABC" (test))))
+
 (define-test with-mapping-collector
   (with-mapping-collector (test (&rest nums)
                             (apply #'+ nums))
