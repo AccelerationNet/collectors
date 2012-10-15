@@ -111,4 +111,4 @@
     (test 1 2 3 4)
     (assert-equal '(2 2 4 2 4 6 2 4 6 8) (test))))
 
-(run-tests)
+(run-tests :all)
