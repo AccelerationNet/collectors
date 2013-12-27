@@ -1,23 +1,22 @@
 (defpackage :collectors-test
-  (:use :cl :cl-user :collectors :lisp-unit))
-
+  (:use :cl :cl-user :collectors :lisp-unit2))
 (in-package :collectors-test)
 
-(define-test make-reducer
+(define-test make-reducer-test (:tags '(reducer))
   (let ((r (make-reducer #'+ 0)))
     (funcall r 0)
     (funcall r 1 2)
     (funcall r 1 2 3)
     (assert-eql 9 (funcall r))))
 
-(define-test with-reducer
+(define-test with-reducer-test (:tags '(reducer))
   (with-reducer (r #'+ 0)
     (r 0)
     (r 1 2)
     (r 1 2 3)
     (assert-eql 9 (r))))
 
-(define-test with-collector
+(define-test with-collector-test (:tags '(collector))
   (with-collector (test)
     (test :a nil :key)
     (test :and :a)
@@ -37,7 +36,7 @@
         (test)
      )))
 
-(define-test with-collector2
+(define-test with-collector2 (:tags '(collector))
   (with-collector (test :from-end t)
     (test :a nil :key)
     (test :and :a)
@@ -57,7 +56,7 @@
         (test)
      )))
 
-(define-test with-appender
+(define-test with-appender-test (:tags '(appender))
   (with-appender (test)
     (test :a :key)
     (test '(:and :a))
@@ -68,7 +67,7 @@
         (test)
      )))
 
-(define-test with-string-builder
+(define-test with-string-builder-test (:tags '(strings))
   (with-string-builder (test)
     (test :a :key)
     (test :and :a)
@@ -91,7 +90,7 @@
         (test)
      )))
 
-(define-test with-formatter
+(define-test with-formatter-test (:tags '(strings))
   (with-formatter (test)
     (test "~D ~D ~D" 0 0 0)
     (test "~A" 1)
@@ -107,7 +106,7 @@
     (test "ABC")
     (assert-equal "0 0 0-1-2-3-ABC" (test))))
 
-(define-test with-mapping-collector
+(define-test with-mapping-collector-test (:tags '(mapping-collector collector))
   (with-mapping-collector (test (&rest nums)
                             (apply #'+ nums))
     (test 1)
@@ -116,7 +115,7 @@
     (test 1 2 3 4)
     (assert-equal '(1 3 6 10) (test))))
 
-(define-test with-mapping-appender
+(define-test with-mapping-appender-test (:tags '(mapping-appender appender))
   (with-mapping-appender (test (&rest nums)
                             (mapcar (lambda (x) (* 2 x)) nums))
     (test 1)
@@ -127,4 +126,3 @@
     (test 1 2 3 4)
     (assert-equal '(2 2 4 2 4 6 2 4 6 8) (test))))
 
-(run-tests :all)

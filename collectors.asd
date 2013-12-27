@@ -23,12 +23,13 @@
   :components ((:module :tests
 			:serial t
 			:components ((:file "collectors"))))
-  :depends-on (:collectors :lisp-unit))
+  :depends-on (:collectors :lisp-unit2))
 
 (defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :collectors))))
   (asdf:load-system :collectors-test)
   (let ((*package* (find-package :collectors-test)))
-    (eval (read-from-string "(run-tests :all)"))))
+    (eval (read-from-string "(with-summary (:name :collectors)
+                                (run-tests :package :collectors-test))"))))
 
 ;; Copyright (c) 2002-2006, Edward Marco Baringer (from arnesi lib)
 ;;               2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
