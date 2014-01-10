@@ -33,7 +33,7 @@
 ;;;; combining them, with the aid of a reducing function, into a
 ;;;; single final value.
 
-(defun make-reducer (function &optional (initial-value nil initial-value-p))
+(defun make-reducer (function &key initial-value place-setter)
   "Create a function which, starting with INITIAL-VALUE, reduces
 any other values into a single final value.
 
@@ -54,38 +54,32 @@ Example:
  (funcall r 0) => 5
  (funcall r 1 2) => 8
  (funcall r) => 8"
-  (let ((value initial-value))
+  (let ((reduction initial-value))
     (lambda (&rest next)
-      (when next
-        ;; supplied a value, reduce
-        (if initial-value-p
-            ;; have a value to test against
-            (dolist (n next)
-              (setf value (funcall function value n)))
-            ;; nothing to test againts yet
-            (setf initial-value-p t
-                  value next)))
-      ;; didn't supply a value, return the current value
-      value)))
+      (dolist (n next)
+        (setf reduction
+              (if (null reduction)
+                  n
+                  (funcall function reduction n))))
+      (when place-setter (funcall place-setter reduction))
+      reduction)))
 
-(defmacro with-reducer ((name function &optional (initial-value nil))
+(defmacro with-reducer ((name function &key (initial-value nil) place)
                         &body body)
   "Locally bind NAME to a reducing function. The arguments
 FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
   (alexandria:with-unique-names (reducer)
-    `(let ((,reducer (make-reducer ,function ,@(list initial-value))))
-       (flet ((,name (&rest items)
-                (if items
-                    (dolist (i items)
-                      (funcall ,reducer i))
-                    (funcall ,reducer))))
-         ,@body))))
+    `(let ((,reducer (make-reducer ,function
+                      :initial-value ,initial-value
+                      :place-setter ,(when place `(lambda (new) (setf ,place new))))))
+      (flet ((,name (&rest items) (apply ,reducer items)))
+        ,@body))))
 
 ;;;; ** Collecting
 ;;;;
 ;;;; Building up a list from multiple values.
 
-(defun make-collector (&optional initial-value (collect-nil t))
+(defun make-collector (&key initial-value (collect-nil t) place-setter)
   "Create a collector function.
 
 A Collector function will collect, into a list, all the values
@@ -97,40 +91,41 @@ current list of values."
          (cdr (last head)))
     (lambda (&rest items)
       (declare (dynamic-extent items))
-      (if (null items)
-          (cdr head)
-          (loop for i in items
-                when (or collect-nil i)
-                  do (let ((new-cons (cons i nil)))
-                       (setf (cdr cdr) new-cons
-                             cdr new-cons)))))))
+      (loop for i in items
+            when (or collect-nil i)
+            do (let ((new-cons (cons i nil)))
+                 (setf (cdr cdr) new-cons
+                       cdr new-cons)))
+      (when place-setter (funcall place-setter (cdr head)))
+      (cdr head)
+      )))
 
-(defun make-appender (&optional initial-value)
+(defun make-appender (&key initial-value place-setter)
   "Create an appender function.
 
 An Appender will append any arguments into a list, all the values
 passed to it in the order in which they were passed. If the
 appender function is called without arguments it returns the
 current list of values."
-  (let ((collector (make-collector initial-value)))
+  (let ((collector (make-collector :initial-value initial-value :place-setter place-setter)))
     (lambda (&rest items)
       ;; flatten one level and append lists for appender
       (setf items (apply #'append
-		   (mapcar #'alexandria:ensure-list items)))
+                         (mapcar #'alexandria:ensure-list items)))
       (apply collector items))))
 
-(defun make-pusher (&optional initial-value (collect-nil t))
+(defun make-pusher (&key initial-value (collect-nil t) place-setter)
   "Create a function which collects values as by PUSH."
-  (let ((value (copy-list initial-value)))
+  (let ((collection (copy-list initial-value)))
     (lambda (&rest items)
       (declare (dynamic-extent items))
-      (if items
-          (dolist (i items)
-            (when (or collect-nil i)
-              (push i value)))
-          value))))
+      (dolist (i items)
+        (when (or collect-nil i)
+          (push i collection)))
+      (when place-setter (funcall place-setter collection))
+      collection)))
 
-(defmacro with-appender ((name &optional initial-value) &body body)
+(defmacro with-appender ((name &key initial-value place) &body body)
   "Bind NAME to a collector function and execute BODY. If
   FROM-END is true the collector will actually be a pusher, (see
   MAKE-PUSHER), otherwise NAME will be bound to a collector,
@@ -144,20 +139,20 @@ current list of values."
 
   "
   (alexandria:with-unique-names (appender)
-    `(let ((,appender (make-appender ,initial-value)))
-       (flet ((,name (&rest items)
-		(apply ,appender items)))
+    `(let ((,appender (make-appender
+                       :initial-value ,initial-value
+                       :place-setter ,(when place `(lambda (new) (setf ,place new))))))
+       (flet ((,name (&rest items) (apply ,appender items)))
          ,@body))))
 
-(defmacro with-appender-output ((name &optional initial-value) &body body)
+(defmacro with-appender-output ((name &key initial-value place) &body body)
   "Same as with-appender, but this form returns the collected values
    automatically
   "
-  `(with-appender (,name ,initial-value) ,@body (,name)))
+  `(with-appender (,name :initial-value ,initial-value :place ,place)
+    ,@body (,name)))
 
-(defmacro with-collector ((name &key
-                            (collect-nil T)
-                            initial-value from-end) &body body)
+(defmacro with-collector ((name &key place (collect-nil T) initial-value from-end) &body body)
   "Bind NAME to a collector function and execute BODY. If
   FROM-END is true the collector will actually be a pusher, (see
   MAKE-PUSHER), otherwise NAME will be bound to a collector,
@@ -169,18 +164,22 @@ current list of values."
        (col)) => (1 2 3)
   "
   (alexandria:with-unique-names (collector)
-    `(let ((,collector ,(if from-end
-                            `(make-pusher ,initial-value ,collect-nil)
-                            `(make-collector ,initial-value ,collect-nil))))
-       (flet ((,name (&rest items)
-		(apply ,collector items)))
-         ,@body))))
+    `(let ((,collector (,(if from-end
+                             'make-pusher
+                             'make-collector)
+                        :initial-value ,initial-value
+                        :collect-nil ,collect-nil
+                        :place-setter ,(when place `(lambda (new) (setf ,place new))))))
+      (flet ((,name (&rest items)
+               (apply ,collector items)))
+        ,@body))))
 
-(defmacro with-collector-output ((name &key (collect-nil t) initial-value from-end)
+(defmacro with-collector-output ((name &key (collect-nil t) initial-value from-end place)
                                  &body body)
   `(with-collector (,name :collect-nil ,collect-nil
                           :initial-value ,initial-value
-                          :from-end ,from-end)
+                          :from-end ,from-end
+                          :place ,place)
     ,@body
     (,name)))
 
