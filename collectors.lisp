@@ -70,7 +70,7 @@ Example:
 FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
   (alexandria:with-unique-names (reducer)
     `(let ((,reducer (make-reducer ,function
-                      :initial-value ,initial-value
+                      :initial-value (or ,initial-value ,place)
                       :place-setter ,(when place `(lambda (new) (setf ,place new))))))
       (flet ((,name (&rest items) (apply ,reducer items)))
         ,@body))))
@@ -140,7 +140,7 @@ current list of values."
   "
   (alexandria:with-unique-names (appender)
     `(let ((,appender (make-appender
-                       :initial-value ,initial-value
+                       :initial-value (or ,initial-value ,place)
                        :place-setter ,(when place `(lambda (new) (setf ,place new))))))
        (flet ((,name (&rest items) (apply ,appender items)))
          ,@body))))
@@ -167,7 +167,7 @@ current list of values."
     `(let ((,collector (,(if from-end
                              'make-pusher
                              'make-collector)
-                        :initial-value ,initial-value
+                        :initial-value (or ,initial-value ,place)
                         :collect-nil ,collect-nil
                         :place-setter ,(when place `(lambda (new) (setf ,place new))))))
       (flet ((,name (&rest items)
