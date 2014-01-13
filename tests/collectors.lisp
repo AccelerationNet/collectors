@@ -4,16 +4,16 @@
 
 (define-test make-reducer-test (:tags '(reducer))
   (let ((r (make-reducer #'+ :initial-value 0)))
-    (funcall r 0)
-    (funcall r 1 2)
-    (funcall r 1 2 3)
+    (assert-eql 0 (funcall r 0))
+    (assert-eql 3 (funcall r 1 2))
+    (assert-eql 9 (funcall r 1 2 3))
     (assert-eql 9 (funcall r))))
 
 (define-test with-reducer-test (:tags '(reducer))
   (with-reducer (r #'+ :initial-value 0)
-    (r 0)
-    (r 1 2)
-    (r 1 2 3)
+    (assert-eql 0 (r 0))
+    (assert-eql 3 (r 1 2))
+    (assert-eql 9 (r 1 2 3))
     (assert-eql 9 (r))))
 
 (define-test with-collector-test (:tags '(collector))

@@ -29,20 +29,39 @@
 
 ;;;; ** Reducing
 
-;;;; reducing is the act of taking values, two at a time, and
-;;;; combining them, with the aid of a reducing function, into a
-;;;; single final value.
+(defclass value-aggregator (closer-mop:funcallable-standard-object)
+  ((initial-value :accessor initial-value :initarg :initial-value :initform nil)
+   (place-setter :accessor place-setter :initarg :place-setter :initform nil)
+   (value :accessor value :initarg :value :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class))
 
-(defun make-reducer (function &key initial-value place-setter)
-  "Create a function which, starting with INITIAL-VALUE, reduces
+(defmethod initialize-instance :after ((o value-aggregator) &key &allow-other-keys)
+  (setf (value o) (typecase (initial-value o)
+                    (list (copy-list (initial-value o)))
+                    (t (initial-value o))))
+  (closer-mop:set-funcallable-instance-function
+   o (lambda (&rest values) (operate o values))))
+
+(defgeneric operate (aggregator values)
+  (:method :after ((o value-aggregator) values
+                   &aux (value (value o)))
+    (declare (ignore values))
+    (dolist (ps (alexandria:ensure-list (place-setter o)))
+      (funcall ps value))))
+
+(defclass reducer (value-aggregator)
+  ((operation :accessor operation :initarg :operation :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class)
+  (:documentation
+   "Create a function which, starting with INITIAL-VALUE, reduces
 any other values into a single final value.
 
-FUNCTION will be called with two values: the current value and
-the new value, in that order. FUNCTION should return exactly one
+OPERATION will be called with two values: the current value and
+the new value, in that order. OPERATION should return exactly one
 value.
 
 The reducing function can be called with n arguments which will
-be applied to FUNCTION one after the other (left to right) and
+be applied to OPERATION one after the other (left to right) and
 will return the new value.
 
 If the reducing function is called with no arguments it will
@@ -53,16 +72,24 @@ Example:
  (setf r (make-reducer #'+ 5))
  (funcall r 0) => 5
  (funcall r 1 2) => 8
- (funcall r) => 8"
-  (let ((reduction initial-value))
-    (lambda (&rest next)
-      (dolist (n next)
-        (setf reduction
-              (if (null reduction)
-                  n
-                  (funcall function reduction n))))
-      (when place-setter (funcall place-setter reduction))
-      reduction)))
+ (funcall r) => 8"))
+
+
+(defmethod operate ((o reducer) values)
+  (dolist (n (alexandria:ensure-list values))
+    (setf (value o)
+          (if (value o)
+              (funcall (operation o) (value o) n)
+              n)))
+  (value o))
+
+;;;; reducing is the act of taking values, two at a time, and
+;;;; combining them, with the aid of a reducing function, into a
+;;;; single final value.
+
+(defun make-reducer (function &key initial-value place-setter)
+  (make-instance 'reducer :initial-value initial-value :place-setter place-setter
+                 :operation function))
 
 (defmacro with-reducer ((name function &key (initial-value nil) place)
                         &body body)
@@ -79,51 +106,58 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
 ;;;;
 ;;;; Building up a list from multiple values.
 
-(defun make-collector (&key initial-value (collect-nil t) place-setter)
-  "Create a collector function.
+(defclass pusher (value-aggregator)
+  ((collect-nil? :accessor collect-nil? :initarg :collect-nil? :initform t)))
 
-A Collector function will collect, into a list, all the values
-passed to it in the order in which they were passed. If the
-callector function is called without arguments it returns the
-current list of values."
+(defmethod operate ((o pusher) values)
+  (dolist (v (alexandria:ensure-list values))
+    (when (or (collect-nil? o) v)
+      (push v (value o))))
+  (value o))
+
+(defclass collector (pusher)
+  ((tail :accessor tail :initarg :tail :initform nil))
+  (:documentation "Create a collector function.
+   A Collector function will collect, into a list, all the values
+   passed to it in the order in which they were passed. If the
+   callector function is called without arguments it returns the
+   current list of values.")
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defmethod initialize-instance :after ((o collector) &key &allow-other-keys)
+  (setf (tail o) (last (value o))))
+
+(defmethod operate ((o collector) values)
+  (dolist (v (alexandria:ensure-list values))
+    (when (or (collect-nil? o) v)
+      (let ((new-cons (cons v nil)))
+        (if (value o)
+            (setf (cdr (tail o)) new-cons)
+            (setf (value o) new-cons))
+        (setf (tail o) new-cons))))
+  (value o))
+
+(defun make-collector (&key initial-value (collect-nil t) place-setter)
   ;; by using this head cons cell we can simplify the loop body
-  (let* ((head (cons :head (copy-list initial-value)))
-         (cdr (last head)))
-    (lambda (&rest items)
-      (declare (dynamic-extent items))
-      (loop for i in items
-            when (or collect-nil i)
-            do (let ((new-cons (cons i nil)))
-                 (setf (cdr cdr) new-cons
-                       cdr new-cons)))
-      (when place-setter (funcall place-setter (cdr head)))
-      (cdr head)
-      )))
+  (make-instance 'collector
+                 :initial-value initial-value :collect-nil? collect-nil
+                 :place-setter place-setter))
+
+(defclass appender (collector)
+  ()
+  (:documentation "Create an appender function.
+
+   An Appender will append any arguments into a list, all the values
+   passed to it in the order in which they were passed. If the
+   appender function is called without arguments it returns the
+   current list of values.")
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defmethod operate ((o appender) values)
+  (call-next-method o (apply #'append (mapcar #'alexandria:ensure-list values))))
 
 (defun make-appender (&key initial-value place-setter)
-  "Create an appender function.
-
-An Appender will append any arguments into a list, all the values
-passed to it in the order in which they were passed. If the
-appender function is called without arguments it returns the
-current list of values."
-  (let ((collector (make-collector :initial-value initial-value :place-setter place-setter)))
-    (lambda (&rest items)
-      ;; flatten one level and append lists for appender
-      (setf items (apply #'append
-                         (mapcar #'alexandria:ensure-list items)))
-      (apply collector items))))
-
-(defun make-pusher (&key initial-value (collect-nil t) place-setter)
-  "Create a function which collects values as by PUSH."
-  (let ((collection (copy-list initial-value)))
-    (lambda (&rest items)
-      (declare (dynamic-extent items))
-      (dolist (i items)
-        (when (or collect-nil i)
-          (push i collection)))
-      (when place-setter (funcall place-setter collection))
-      collection)))
+  (make-instance 'appender :initial-value initial-value :place-setter place-setter))
 
 (defmacro with-appender ((name &key initial-value place) &body body)
   "Bind NAME to a collector function and execute BODY. If
@@ -191,25 +225,50 @@ current list of values."
          (with-collectors ,(cdr names) ,@body))
       `(progn ,@body)))
 
-(defun make-formatter (&key delimiter stream pretty)
-  "Create a string formatter collector function.
+
+(defclass string-formatter (value-aggregator)
+  ((delimiter :accessor delimiter :initarg :delimiter :initform nil)
+   (has-written? :accessor has-written? :initarg :has-written? :initform nil)
+   (output-stream :accessor output-stream :initarg :output-stream :initform nil)
+   (pretty? :accessor pretty? :initarg :pretty? :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class)
+  (:documentation
+   "Create a string formatter collector function.
 
 creates a (lambda &optional format-string &rest args) and collects these in a list
 When called with no args, returns the concatenated (with delimiter) results
 
 binds *print-pretty* to nil
-"
-  (let* ((*print-pretty* pretty)
-         (format-string (if delimiter
-                            (format nil "~~{~~?~~^~a~~}" delimiter)
-                            "~{~?~}")))
-    (with-collector (value)
-      (lambda (&rest args)
-        (if (null args)
-            (let ((*print-pretty* pretty))
-              (format stream format-string (value)))
-            (destructuring-bind (format-string &rest args) args
-              (value format-string args)))))))
+"))
+
+(defmethod initialize-instance :after ((o string-formatter) &key &allow-other-keys)
+  (when (and (delimiter o) (not (stringp (delimiter o))))
+    (setf (delimiter o) (princ-to-string o)))
+  (when (initial-value o)
+    (setf (has-written? o) t)
+    (when (output-stream o)
+      (write-string (initial-value o) (output-stream o)))))
+
+(defmethod operate ((o string-formatter) values)
+  (setf values (alexandria:ensure-list values))
+  (when values
+    (let* ((*print-pretty* (pretty? o))
+           (new-part (format nil "~@[~A~]~?" (when (has-written? o) (delimiter o))
+                             (first values) (rest values))))
+      (setf (has-written? o) t)
+      (setf (value o) (concatenate 'string (value o) new-part))
+      (when (output-stream o)
+        (write-string new-part (output-stream o)))))
+  (value o))
+
+(defun make-formatter (&key delimiter stream pretty)
+  "Create a string formatter collector function.
+
+   creates a (lambda &optional format-string &rest args) and collects these in a list
+   When called with no args, returns the concatenated (with delimiter) results
+
+   binds *print-pretty* to nil "
+  (make-instance 'string-formatter :delimiter delimiter :output-stream stream :pretty? pretty ))
 
 (defmacro with-formatter ((name &key delimiter stream pretty) &body body)
   "A macro makes a function with name for body that is a string formatter
@@ -228,33 +287,53 @@ This form returns the result of that formatter"
      ,@body
      (,name)))
 
-(defun make-string-builder (&key
-                              delimiter
-                              (ignore-empty-strings-and-nil t)
-                              pretty
-                              stream)
-  "Create a function that will build up a string for you
+(defclass string-builder (string-formatter)
+  ((ignore-empty-strings-and-nil?
+    :accessor ignore-empty-strings-and-nil? :initarg :ignore-empty-strings-and-nil? :initform t))
+  (:metaclass closer-mop:funcallable-standard-class)
+  (:documentation
+   "Create a function that will build up a string for you
    Each call to the function with arguments appends those arguments to the string
    with an optional delimiter between them.
 
    if ignore-empty-strings-and-nil is true neither empty strings nor nil will be
    printed to the stream
 
-   A call to the function with no arguments returns the output string"
-  (let ((formatter (make-formatter :delimiter delimiter :pretty pretty :stream stream))
-        (include-empty? (not ignore-empty-strings-and-nil)))
-    (flet ((include-arg? (arg)
-             (or include-empty?
-                 (if (stringp arg)
-                     (plusp (length arg))
-                     arg))))
-      (lambda (&rest args)
-        (declare (dynamic-extent args))
-        (if args
-            (loop for arg in args
-                  when (include-arg? arg)
-                    do (apply formatter (list "~A" arg)))
-            (funcall formatter))))))
+   A call to the function with no arguments returns the output string"))
+
+(defmethod operate ((o string-builder) values
+                    &aux (collect-empty? (not (ignore-empty-strings-and-nil? o)))
+                    (delimiter (delimiter o))
+                    (out (output-stream o))
+                    (*print-pretty* (pretty? o)))
+  (setf values (alexandria:ensure-list values))
+  (dolist (v values)
+    (when (or collect-empty?
+              (and v (or (not (stringp v))
+                         (plusp (length v)))))
+      (setf v (typecase v
+                (string v)
+                (t (princ-to-string v))))
+      (cond
+        ((and delimiter (has-written? o))
+         (when out
+           (write-string delimiter out)
+           (write-string v out))
+         (setf (value o) (concatenate 'string (value o) delimiter v)))
+        ((has-written? o)
+         (when out (write-string v out))
+         (setf (value o) (concatenate 'string (value o) v)))
+        (t
+         (when out (write-string v out))
+         (setf (value o) v)))
+      (setf (has-written? o) t)))
+  (value o))
+
+(defun make-string-builder (&key delimiter ignore-empty-strings-and-nil stream)
+  (make-instance 'string-builder
+                 :output-stream stream
+                 :delimiter delimiter
+                 :ignore-empty-strings-and-nil? ignore-empty-strings-and-nil))
 
 (defmacro with-string-builder ((name &key delimiter
                                      (ignore-empty-strings-and-nil t)
