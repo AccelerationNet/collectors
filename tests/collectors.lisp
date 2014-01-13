@@ -156,3 +156,9 @@
       (assert-equal '(:a 0 1 (2 3) (4)) (c '(2 3) '(4)))
       (assert-equal '(:a 0 1 (2 3) (4)) collected))))
 
+(define-test deoperate-lists (:tags '(collector deoperate))
+  (let ((c (make-collector)))
+    (assert-equal '(1 2 3 4 5) (funcall c 1 2 3 4 5))
+    (assert-equal '(1 2 4 5) (deoperate c 3))
+    (assert-equal '(1 5) (deoperate c '(2 4 6 8)))))
+

@@ -21,6 +21,8 @@
    #:make-formatter
    #:with-formatter
    #:with-formatter-output
+   #:operate
+   #:deoperate
    ))
 
 (in-package :collectors)
@@ -42,7 +44,20 @@
   (closer-mop:set-funcallable-instance-function
    o (lambda (&rest values) (operate o values))))
 
+(defgeneric should-aggregate? (aggregator value)
+  (:method ((o value-aggregator) v) t)
+  (:documentation "Should we aggregate a given value into our collection"))
+
+(defgeneric deoperate (aggregator values &key test key)
+  (:documentation "Undo the aggregation operation of an aggregator and list of values")
+  (:method :after ((o value-aggregator) values &key test key
+                   &aux (value (value o)))
+    (declare (ignore values test key))
+    (dolist (ps (alexandria:ensure-list (place-setter o)))
+      (funcall ps value))))
+
 (defgeneric operate (aggregator values)
+  (:documentation "Perform the aggregation operation on the aggregator for the values")
   (:method :after ((o value-aggregator) values
                    &aux (value (value o)))
     (declare (ignore values))
@@ -106,16 +121,30 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
 ;;;;
 ;;;; Building up a list from multiple values.
 
-(defclass pusher (value-aggregator)
-  ((collect-nil? :accessor collect-nil? :initarg :collect-nil? :initform t)))
+(defclass list-aggregator (value-aggregator)
+  ((collect-nil? :accessor collect-nil? :initarg :collect-nil? :initform t
+    :documentation "Should we collect nil into our results")
+   (new-only-test :accessor new-only-test :initarg :new-only-test :initform nil
+    :documentation "If supplied with a new-only-test, we will verify that we
+     have not already collected this item before collecting again")
+   (new-only-key :accessor new-only-key :initarg :new-only-key :initform nil)))
+
+(defmethod should-aggregate? ((o list-aggregator) v)
+  (and (or (collect-nil? o) v)
+       (or (null (new-only-test o))
+           (null (member v (value o)
+                         :test #'new-only-test
+                         :key (or (new-only-key o) #'identity))))))
+
+(defclass pusher (list-aggregator) ())
 
 (defmethod operate ((o pusher) values)
   (dolist (v (alexandria:ensure-list values))
-    (when (or (collect-nil? o) v)
+    (when (should-aggregate? o v)
       (push v (value o))))
   (value o))
 
-(defclass collector (pusher)
+(defclass collector (list-aggregator)
   ((tail :accessor tail :initarg :tail :initform nil))
   (:documentation "Create a collector function.
    A Collector function will collect, into a list, all the values
@@ -129,12 +158,35 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
 
 (defmethod operate ((o collector) values)
   (dolist (v (alexandria:ensure-list values))
-    (when (or (collect-nil? o) v)
+    (when (should-aggregate? o v)
       (let ((new-cons (cons v nil)))
         (if (value o)
             (setf (cdr (tail o)) new-cons)
             (setf (value o) new-cons))
         (setf (tail o) new-cons))))
+  (value o))
+
+(defmethod deoperate ((o list-aggregator) to-remove
+                      &key test key
+                      &aux prev)
+  (setf to-remove (alexandria:ensure-list to-remove))
+  (loop for cons on (value o)
+        for (this . next) = cons
+        do (if (null (member (funcall (or key #'identity) this)
+                             to-remove
+                             :test (or test #'eql)))
+               ;; not to remove
+               (setf prev cons)
+               (cond
+                 ;; remove first elt
+                 ((null prev)
+                  (setf (value o) next))
+                 ;; remove last elt
+                 ((null next)
+                  (setf (cdr prev) nil
+                        (tail o) prev))
+                 ;; remove from middle of the list
+                 (t (setf (cdr prev) next)))))
   (value o))
 
 (defun make-collector (&key initial-value (collect-nil t) place-setter)
