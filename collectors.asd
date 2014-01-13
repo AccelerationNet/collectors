@@ -13,7 +13,7 @@
   :licence "BSD"
   :version "0.1"
   :components ((:file "collectors"))
-  :depends-on (:alexandria))
+  :depends-on (:alexandria :closer-mop))
 
 (defsystem :collectors-test
   :description "A library providing various collector type macros

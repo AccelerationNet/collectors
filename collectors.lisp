@@ -127,7 +127,8 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
    (new-only-test :accessor new-only-test :initarg :new-only-test :initform nil
     :documentation "If supplied with a new-only-test, we will verify that we
      have not already collected this item before collecting again")
-   (new-only-key :accessor new-only-key :initarg :new-only-key :initform nil)))
+   (new-only-key :accessor new-only-key :initarg :new-only-key :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class))
 
 (defmethod should-aggregate? ((o list-aggregator) v)
   (and (or (collect-nil? o) v)
@@ -136,7 +137,16 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
                          :test #'new-only-test
                          :key (or (new-only-key o) #'identity))))))
 
-(defclass pusher (list-aggregator) ())
+(defclass pusher (list-aggregator)
+  ()
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defun make-pusher (&key initial-value collect-nil place-setter)
+  (make-instance
+   'pusher
+   :initial-value initial-value
+   :collect-nil? collect-nil
+   :place-setter place-setter))
 
 (defmethod operate ((o pusher) values)
   (dolist (v (alexandria:ensure-list values))
@@ -295,7 +305,7 @@ binds *print-pretty* to nil
 
 (defmethod initialize-instance :after ((o string-formatter) &key &allow-other-keys)
   (when (and (delimiter o) (not (stringp (delimiter o))))
-    (setf (delimiter o) (princ-to-string o)))
+    (setf (delimiter o) (princ-to-string (delimiter o))))
   (when (initial-value o)
     (setf (has-written? o) t)
     (when (output-stream o)
@@ -353,16 +363,20 @@ This form returns the result of that formatter"
 
    A call to the function with no arguments returns the output string"))
 
+(defmethod should-aggregate? ((o string-builder) v
+                              &aux (collect-empty? (not (ignore-empty-strings-and-nil? o))))
+  (or collect-empty?
+      (and v (or (not (stringp v))
+                 (plusp (length v))))))
+
 (defmethod operate ((o string-builder) values
-                    &aux (collect-empty? (not (ignore-empty-strings-and-nil? o)))
+                    &aux
                     (delimiter (delimiter o))
                     (out (output-stream o))
                     (*print-pretty* (pretty? o)))
   (setf values (alexandria:ensure-list values))
   (dolist (v values)
-    (when (or collect-empty?
-              (and v (or (not (stringp v))
-                         (plusp (length v)))))
+    (when (should-aggregate? o v)
       (setf v (typecase v
                 (string v)
                 (t (princ-to-string v))))
