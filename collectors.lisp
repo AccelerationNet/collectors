@@ -1,8 +1,21 @@
 ;; -*- lisp -*-
 
-(cl:defpackage :collectors
-  (:use :cl :cl-user)
+(cl:defpackage :collectors-signals
   (:export
+   ;; signals and restarts
+   #:aggregating #:skip #:new-value #:value #:aggregator
+   #:done-aggregating #:aggregate))
+
+(cl:defpackage :collectors
+  (:use :cl :cl-user :collectors-signals)
+  (:export
+   #:collect-at-end
+   #:append-at-end
+   #:make-simple-collector
+   #:make-simple-appender
+   #:make-simple-collector-to-place
+   #:make-simple-appender-to-place
+
    #:with-collector
    #:with-collector-output
    #:with-collectors
@@ -26,6 +39,108 @@
    ))
 
 (in-package :collectors)
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (define-condition collectors-signals:aggregating ()
+    ((collectors-signals:value
+         :accessor collectors-signals:value
+         :initarg :value :initform nil)
+     (collectors-signals:aggregator
+      :accessor collectors-signals:aggregator
+      :initarg :aggregator :initform nil)))
+
+  (define-condition collectors-signals:done-aggregating ()
+    ((collectors-signals:aggregate
+         :accessor collectors-signals:aggregate
+         :initarg :aggregate :initform nil)
+     (collectors-signals:aggregator
+      :accessor collectors-signals:aggregator
+      :initarg :aggregator :initform nil)))
+
+  (defmacro with-signal-context ((value after-values aggregator) &body body)
+    (alexandria:with-unique-names (new-value)
+      `(with-simple-restart
+        (collectors-signals:skip "Skip aggregating ~A into ~A" ,value ,aggregator)
+        (restart-case (signal 'aggregating :value ,value :aggregator ,aggregator)
+          (collectors-signals:new-value (,new-value)
+            :report "Aggregate a new value instead"
+            (setf ,value ,new-value)))
+        (prog1 (progn ,@body)
+          (signal 'done-aggregating :after-values ,after-values :aggregator ,aggregator))))))
+
+(defmacro collect-at-end (head-place tail-place values-place)
+  "Macros to ease efficient collection at the end of a list"
+  (alexandria:with-unique-names (a)
+    `(dolist (,a ,values-place)
+      (let ((c (cons ,a nil)))
+        (when (null ,head-place) (setf ,head-place c))
+        (unless (null ,tail-place) (setf (cdr ,tail-place) c))
+        (setf ,tail-place c)))))
+
+(defmacro collect-at-end-with-signals (head-place tail-place values-place
+                                       aggregator-place post-values-place)
+  "Macros to ease efficient collection at the end of a list"
+  (alexandria:with-unique-names (a)
+    `(dolist (,a ,values-place)
+      (with-signal-context (,a ,post-values-place ,aggregator-place)
+        (let ((c (cons ,a nil)))
+          (when (null ,head-place) (setf ,head-place c))
+          (unless (null ,tail-place) (setf (cdr ,tail-place) c))
+          (setf ,tail-place c))))))
+
+(defmacro append-at-end (head-place tail-place values-place)
+  "Macros to ease efficient collection (with appending) at the end of a list"
+  (alexandria:with-unique-names (a)
+    `(dolist (,a ,values-place)
+      (typecase ,a
+        (list (collect-at-end ,head-place ,tail-place ,a))
+        (t (let ((c (cons ,a nil)))
+             (when (null ,head-place) (setf ,head-place c))
+             (unless (null ,tail-place) (setf (cdr ,tail-place) c))
+             (setf ,tail-place (last c))))))))
+
+(defmacro append-at-end-with-signals (head-place tail-place values-place
+                                      aggregator-place post-values-place)
+  "Macros to ease efficient collection (with appending) at the end of a list"
+  (alexandria:with-unique-names (a)
+    `(dolist (,a ,values-place)
+      (with-signal-context (,a ,post-values-place ,aggregator-place)
+        (typecase ,a
+          (list (collect-at-end-with-signals
+                 ,head-place ,tail-place ,a ,aggregator-place ,post-values-place))
+          (t (let ((c (cons ,a nil)))
+               (when (null ,head-place) (setf ,head-place c))
+               (unless (null ,tail-place) (setf (cdr ,tail-place) c))
+               (setf ,tail-place (last c)))))))))
+
+(defun make-simple-collector ()
+  "A fastest possible, fewest frills collector suitable to places where efficiency matters"
+  (let ( head tail )
+    (lambda (&rest values)
+      (collect-at-end head tail values)
+      head)))
+
+(defmacro make-simple-collector-to-place (place)
+  `(let ( tail )
+    (lambda (&rest values)
+      (collect-at-end ,place tail values)
+      ,place)))
+
+(defun make-simple-appender ()
+  "A fastest possible, fewest frills collector suitable to places where efficiency matters
+   that appends any values that re lists"
+  (let ( head tail )
+    (lambda (&rest values)
+      (append-at-end head tail values)
+      head)))
+
+(defmacro make-simple-appender-to-place (place)
+  "A fastest possible, fewest frills collector suitable to places where efficiency matters
+   that appends any values that re lists"
+  `(let ( tail )
+    (lambda (&rest values)
+      (append-at-end ,place tail values)
+      ,place)))
 
 ;;;; * Reducing and Collecting
 
@@ -58,11 +173,22 @@
 
 (defgeneric operate (aggregator values)
   (:documentation "Perform the aggregation operation on the aggregator for the values")
-  (:method :after ((o value-aggregator) values
-                   &aux (value (value o)))
+  (:method :around ((o value-aggregator) values
+                    &aux (places (alexandria:ensure-list (place-setter o))))
     (declare (ignore values))
-    (dolist (ps (alexandria:ensure-list (place-setter o)))
-      (funcall ps value))))
+    (handler-bind
+        ((aggregating
+           (lambda (c)
+             (when (eql o (aggregator c))
+               (unless (should-aggregate? (aggregator c) (value c))
+                 (invoke-restart 'skip)))))
+         (done-aggregating
+           (lambda (c)
+             (when (eql o (aggregator c))
+               (dolist (p places)
+                 (funcall p (value o)))))))
+      (call-next-method)
+      (value o))))
 
 (defclass reducer (value-aggregator)
   ((operation :accessor operation :initarg :operation :initform nil))
@@ -91,12 +217,12 @@ Example:
 
 
 (defmethod operate ((o reducer) values)
-  (dolist (n (alexandria:ensure-list values))
-    (setf (value o)
-          (if (value o)
-              (funcall (operation o) (value o) n)
-              n)))
-  (value o))
+  (dolist (v (alexandria:ensure-list values))
+    (with-signal-context (v (value o) o)
+      (setf (value o)
+            (if (value o)
+                (funcall (operation o) (value o) v)
+                v)))))
 
 ;;;; reducing is the act of taking values, two at a time, and
 ;;;; combining them, with the aid of a reducing function, into a
@@ -150,9 +276,8 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
 
 (defmethod operate ((o pusher) values)
   (dolist (v (alexandria:ensure-list values))
-    (when (should-aggregate? o v)
-      (push v (value o))))
-  (value o))
+    (with-signal-context (v (value o) o)
+      (push v (value o)))))
 
 (defclass collector (list-aggregator)
   ((tail :accessor tail :initarg :tail :initform nil))
@@ -167,14 +292,7 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
   (setf (tail o) (last (value o))))
 
 (defmethod operate ((o collector) values)
-  (dolist (v (alexandria:ensure-list values))
-    (when (should-aggregate? o v)
-      (let ((new-cons (cons v nil)))
-        (if (value o)
-            (setf (cdr (tail o)) new-cons)
-            (setf (value o) new-cons))
-        (setf (tail o) new-cons))))
-  (value o))
+  (collect-at-end-with-signals (value o) (tail o) values o (value o)))
 
 (defmethod deoperate ((o list-aggregator) to-remove
                       &key test key
@@ -216,7 +334,7 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
   (:metaclass closer-mop:funcallable-standard-class))
 
 (defmethod operate ((o appender) values)
-  (call-next-method o (apply #'append (mapcar #'alexandria:ensure-list values))))
+  (append-at-end-with-signals (value o) (tail o) values o (values o)))
 
 (defun make-appender (&key initial-value place-setter)
   (make-instance 'appender :initial-value initial-value :place-setter place-setter))
@@ -320,8 +438,7 @@ binds *print-pretty* to nil
       (setf (has-written? o) t)
       (setf (value o) (concatenate 'string (value o) new-part))
       (when (output-stream o)
-        (write-string new-part (output-stream o)))))
-  (value o))
+        (write-string new-part (output-stream o))))))
 
 (defun make-formatter (&key delimiter stream pretty)
   "Create a string formatter collector function.
@@ -376,7 +493,7 @@ This form returns the result of that formatter"
                     (*print-pretty* (pretty? o)))
   (setf values (alexandria:ensure-list values))
   (dolist (v values)
-    (when (should-aggregate? o v)
+    (with-signal-context (v (value o) o)
       (setf v (typecase v
                 (string v)
                 (t (princ-to-string v))))
@@ -392,8 +509,7 @@ This form returns the result of that formatter"
         (t
          (when out (write-string v out))
          (setf (value o) v)))
-      (setf (has-written? o) t)))
-  (value o))
+      (setf (has-written? o) t))))
 
 (defun make-string-builder (&key delimiter ignore-empty-strings-and-nil stream)
   (make-instance 'string-builder
@@ -428,6 +544,20 @@ This form returns the result of that formatter"
     ,@body
     (,name)))
 
+(defun mapping-aggregation-context (body-fn &key aggregator map-fn)
+  (handler-bind
+      ((aggregating
+         (lambda (c)
+           (when (eql aggregator (aggregator c))
+             (invoke-restart 'new-value (funcall map-fn (value c)))))))
+    (funcall body-fn)))
+
+(defmacro map-aggregation ((aggregator fn-spec) &body body)
+  `(mapping-aggregation-context
+    (lambda () ,@body)
+    :aggregator ,aggregator
+    :map-fn ,fn-spec))
+
 ;;;; Mapping collectors
 (defmacro with-mapping-collector ((name fn-args &body fn-body)
                                   &body body)
@@ -445,21 +575,16 @@ This form returns the result of that formatter"
    "
   (alexandria:with-unique-names (col flet-args)
     `(let ((,col (make-collector)))
-      (flet ((,name (&rest ,flet-args)
-               (if ,flet-args
-                   (funcall ,col (apply (lambda ,fn-args ,@fn-body)
-                                ,flet-args))
-                   (funcall ,col))))
-        ,@body))))
+      (map-aggregation (,col (lambda ,fn-args ,@fn-body))
+        (flet ((,name (&rest ,flet-args) (apply ,col ,flet-args)))
+          ,@body)))))
 
 (defmacro with-mapping-appender ((name fn-args &body fn-body)
                                  &body body)
   "Like a with-appender, but instead of a name we take a function spec
 
-   if you call the resultant function with no arguments, you get the
-     collection so far
-   if you call it with arguments the results of calling your function spec are
-     collected
+   calling the function will appen
+   
    (with-mapping-appender (app (l) (mapcar #'(lambda (x) (* 2 x)) l))
        (app '(1 2))
        (app '(2 3))
@@ -468,12 +593,12 @@ This form returns the result of that formatter"
   "
   (alexandria:with-unique-names (col flet-args)
     `(let ((,col (make-appender)))
-      (flet ((,name (&rest ,flet-args)
-               (if ,flet-args
-                   (funcall ,col (apply (lambda ,fn-args ,@fn-body)
-                                        ,flet-args))
-                   (funcall ,col))))
-        ,@body))))
+      (map-aggregation (,col (lambda ,fn-args ,@fn-body))
+        (flet ((,name (&rest ,flet-args) (apply ,col ,flet-args)))
+          ,@body)))))
+
+
+
 
 ;; Copyright (c) 2002-2006, Edward Marco Baringer
 ;;               2011 Russ Tyndall , Acceleration.net http://www.acceleration.net

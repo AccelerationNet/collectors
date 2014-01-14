@@ -10,104 +10,124 @@ these in code that doesnt need to require all of arnesi.  Also arnesi
 is hard to update.
 
 [original arnesi docs](http://common-lisp.net/project/bese/docs/arnesi/html/Reducing_0020and_0020Collecting.html)
- 
+
+At this point the API and performance profile has diverged from ARNESI
 
 ## API 
 
-### make-collector / with-collector / with-mapping-collector
+### Definitions - as applied to this library
 
-Create a collector function.
+Aggregators: functions / objects which take many values and combine
+   them in some logical way.  All aggregators accept `N` values and,
+   after aggregating each of them, return the new aggregate value
 
-A Collector function will collect, into a list, all the values
-passed to it in the order in which they were passed. If the
-callector function is called without arguments it returns the
-current list of values. 
+Reducers: aggregate values by combining new values into a single value,
+   eg: #'+ can be used to reduce successive numbers into their sum
+
+Collectors: aggregate items into a list by adding each item to the end
+   of a list.
+
+Appenders: aggregate items into a list by appending each item to the
+   end. If single, the item is collected, if a list, it is appended 
+   eg: (app (1) 2 (3 (4))) => (1 2 3 (4))
+
+Pusher: collect items (by push) at the beginning of a list
+
+### Simple aggregators
+
+Simple aggregators are lambdas which do not signal (are not
+filterable), and store their data in local places.
+
+#### append-at-end, collect-at-end
+
+Macros for inlining collection at the end of a list by providing
+places for each operation
+
+#### make-simple-collector / make-simple-appender
+
+Quickest possible function based implementation of a collector /
+appender. Returns (lambda (&rest values) {do} collected-values),
+The `-to-place` variants are macros that build the same function, 
+but with the head of the list stored in a user-provided place
+
+
+### Nonsimple aggregators
+
+Non simple aggregators are funcallable CLOS instances with a type
+heirachy rooted at `value-aggregator`.
+
+These type of aggregators support a standard set of operations and
+signals.  
+
+#### `operate` / `deoperate`
+
+These methods perform the correct operation for the type of aggregator
+(EG: reducing, appending, collecting, pushing).  Deoperate attempts to
+undo the operation (currently only defined for the list types).
+
+#### `should-aggregate?`
+
+Given an aggregator and a value, should we include the value in our
+collection.  Used in conjunction with the skip restart to orchestrate
+skipping items.
+
+#### Signals and Restarts
+
+* collectors-signals:aggregating - signaled when we begin aggregating a value
+* collectors-signals:done-aggregating - signaled when we finish aggregating a value
+* collectors-signals:skip - *restart* skip aggregating this item (used to filter out nils etc)
+* collectors-signals:use-value - *restart* aggregate a different value instead (used for
+  mapping)
+
+#### make-collector, make-pusher, make-reducer, make-appender
+
+Creates a funcallable instance to perform the expected operation
+
+
+
+#### Strings: make-formatter (fn), string-formatter (class), with-formatter (macro)
+
+String formatters accept a format-string and list of arguments, and
+use format to process the two into a string.  If a stream is provided
+we write that string to the stream.  We also always concatenate the
+results of all formatter calls.  The function (as all aggregators)
+returns the concatenated results of all calls.
+
+Optionally a delimiter will be written between each call to the
+formatter.
+
+A provided stream will be written to as each formatter call is made.
+
+#### Strings: make-string-builder / with-string-builder / with-string-builder-output
+
+Create a function that will build up a string for you. Each call to
+the function concatenates all arguments (coerced to string via princ)
+into the result.
+
+if ignore-empty-strings-and-nil is true neither empty strings nor nil
+will be collect to the stream / aggregate.  (Delimiters will also be
+elided)
+
+Optionally a delimiter will be written between each call to the
+formatter.
+
+A provided stream will be written to as each formatter call is made.
+
+### Context Macros `with-collector` & `with-collector-output`
+
+Create a lexical function that calls a new aggregator of the requested
+type.  When using the `-output` variants, the aggregate value is
+returned from the form. Otherwise, the value of the last form is
+returned per-usual.
 
 ```
    (with-collector (col)
-       (col 1)
-       (col 2)
-       (col 3)
+       (col 1) ; (1)
+       (col 2) ; (1 2)
+       (col 3) ; (1 2 3)
        (col)) => (1 2 3)
 ```
 
-Mapping collectors mutate the collected value while collecting it.
-
-```
-   (with-mapping-collector (col (x) (* 2 x))
-       (col 1)
-       (col 2)
-       (col 3)
-       (col)) => (2 4 6)
-```
-
-
-### make-reducer / with-reducer
-
-Create a function which, starting with INITIAL-VALUE, reduces
-any other values into a single final value.
-
-FUNCTION will be called with two values: the current value and
-the new value, in that order. FUNCTION should return exactly one
-value.
-
-The reducing function can be called with n arguments which will
-be applied to FUNCTION one after the other (left to right) and
-will return the new value.
-
-If the reducing function is called with no arguments it will
-return the current value.
-
-```
-Example:
- (setf r (make-reducer #'+ :initial-value 5))
- (funcall r 0) => 5
- (funcall r 1 2) => 8
- (funcall r) => 8
-```
-
-
-### make-appender / with-appender / with-mapping-appender
-
-Create an appender function.
-
-An Appender will append any arguments into a list, all the values
-passed to it in the order in which they were passed. If the
-appender function is called without arguments it returns the
-current list of values.
-
-```
-    (with-appender (app)
-       (app '(1 2))
-       (app '(2 3))
-       (app '(3 4))
-       (app)) => (1 2 2 3 3 4)
-```
-
-Mapping appenders mutate the collected values while collecting them.
-
-```
-   (with-mapping-appender (app (l) (mapcar #'(lambda (x) (* 2 x)) l))
-       (app '(1 2))
-       (app '(2 3))
-       (app '(3 4))
-       (app)) => (2 4 4 6 6 8)
-```
-
-
-### make-string-builder / with-string-builder / with-string-builder-output
-
-Create a function that will build up a string for you Each call to the
-function with arguments appends those arguments to the string with an
-optional delimiter between them.
-
-if ignore-empty-strings-and-nil is true neither empty strings nor nil
-will be printed to the stream
-
-A call to the function with no arguments returns the output string
-
-with-string-builder-output returns the collected string as the value
-of the "with" form
 
 ## Authors
 
