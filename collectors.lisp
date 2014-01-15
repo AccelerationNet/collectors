@@ -113,34 +113,36 @@
                (unless (null ,tail-place) (setf (cdr ,tail-place) c))
                (setf ,tail-place (last c)))))))))
 
-(defun make-simple-collector ()
-  "A fastest possible, fewest frills collector suitable to places where efficiency matters"
-  (let ( head tail )
-    (lambda (&rest values)
-      (collect-at-end head tail values)
-      head)))
-
 (defmacro make-simple-collector-to-place (place)
-  `(let ( tail )
-    (lambda (&rest values)
-      (collect-at-end ,place tail values)
-      ,place)))
+  (alexandria:with-unique-names (tail)
+    `(progn
+      (setf ,place (alexandria:ensure-list ,place))
+      (let* ((,tail (last ,place)))
+        (lambda (&rest values)
+          (collect-at-end ,place ,tail values)
+          ,place)))))
 
-(defun make-simple-appender ()
-  "A fastest possible, fewest frills collector suitable to places where efficiency matters
-   that appends any values that re lists"
-  (let ( head tail )
-    (lambda (&rest values)
-      (append-at-end head tail values)
-      head)))
+(defun make-simple-collector (&optional initial-value)
+  "A fastest possible, fewest frills collector suitable to places where efficiency matters"
+  (let ((head initial-value))
+    (make-simple-collector-to-place head)))
 
 (defmacro make-simple-appender-to-place (place)
   "A fastest possible, fewest frills collector suitable to places where efficiency matters
    that appends any values that re lists"
-  `(let ( tail )
-    (lambda (&rest values)
-      (append-at-end ,place tail values)
-      ,place)))
+  (alexandria:with-unique-names (tail)
+    `(progn
+      (setf ,place (alexandria:ensure-list ,place))
+      (let ((,tail (last ,place)))
+        (lambda (&rest values)
+          (append-at-end ,place ,tail values)
+          ,place)))))
+
+(defun make-simple-appender (&optional initial-value)
+  "A fastest possible, fewest frills collector suitable to places where efficiency matters
+   that appends any values that re lists"
+  (let ((head initial-value))
+    (make-simple-appender-to-place head)))
 
 ;;;; * Reducing and Collecting
 
@@ -377,16 +379,14 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
        (col 3)
        (col)) => (1 2 3)
   "
-  (alexandria:with-unique-names (collector)
-    `(let ((,collector (,(if from-end
-                             'make-pusher
-                             'make-collector)
-                        :initial-value (or ,initial-value ,place)
-                        :collect-nil ,collect-nil
-                        :place-setter ,(when place `(lambda (new) (setf ,place new))))))
-      (flet ((,name (&rest items)
-               (apply ,collector items)))
-        ,@body))))
+  `(let ((,name (,(if from-end
+                      'make-pusher
+                      'make-collector)
+                 :initial-value (or ,initial-value ,place)
+                 :collect-nil ,collect-nil
+                 :place-setter ,(when place `(lambda (new) (setf ,place new))))))
+    (flet ((,name (&rest items) (operate ,name items)))
+      ,@body)))
 
 (defmacro with-collector-output ((name &key (collect-nil t) initial-value from-end place)
                                  &body body)

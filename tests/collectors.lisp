@@ -203,3 +203,21 @@
         (assert-equal '(2 4 2 4) (z 1 nil 2))
         (assert-equal '(1 nil 2 1 nil 2) (x 1 nil 2))
         ))))
+
+(define-test simple-collectors-init-test (:tags '(collector place initial-value))
+  (let* ((as) (bs 2) (cs '(1 2))
+         (a (collectors:make-simple-collector-to-place as))
+         (b (collectors:make-simple-collector-to-place bs))
+         (c (collectors:make-simple-collector-to-place cs)))
+    (funcall a :a :a)
+    (funcall b :b :b)
+    (funcall c :c :c)
+    (assert-equal '(:a :a) as)
+    (assert-equal '(:a :a) (funcall a))
+
+    (assert-equal '(2 :b :b) bs)
+    (assert-equal '(2 :b :b) (funcall b))
+
+    (assert-equal '(1 2 :c :c) cs)
+    (assert-equal '(1 2 :c :c) (funcall c))
+    ))
