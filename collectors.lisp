@@ -433,7 +433,7 @@ binds *print-pretty* to nil
   (setf values (alexandria:ensure-list values))
   (when values
     (let* ((*print-pretty* (pretty? o))
-           (new-part (format nil "~@[~A~]~?" (when (has-written? o) (delimiter o))
+           (new-part (format nil "~@[~@?~]~?" (when (has-written? o) (delimiter o))
                              (first values) (rest values))))
       (setf (has-written? o) t)
       (setf (value o) (concatenate 'string (value o) new-part))
