@@ -148,12 +148,15 @@
 
 ;;;; ** Reducing
 
+;; ACL was throwing errors about this not being finalized (seems odd) re github #3
+;; https://github.com/AccelerationNet/collectors/issues/3
+(closer-mop:ensure-finalized (find-class 'closer-mop:funcallable-standard-object))
+
 (defclass value-aggregator (closer-mop:funcallable-standard-object)
   ((initial-value :accessor initial-value :initarg :initial-value :initform nil)
    (place-setter :accessor place-setter :initarg :place-setter :initform nil)
    (value :accessor value :initarg :value :initform nil))
   (:metaclass closer-mop:funcallable-standard-class))
-
 (defmethod initialize-instance :after ((o value-aggregator) &key &allow-other-keys)
   (setf (value o) (typecase (initial-value o)
                     (list (copy-list (initial-value o)))
