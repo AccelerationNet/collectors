@@ -71,6 +71,10 @@ Given an aggregator and a value, should we include the value in our
 collection.  Used in conjunction with the skip restart to orchestrate
 skipping items.
 
+#### Place Setters
+
+This is function (or list thereof) that writes the aggregate value to the place after each 
+
 #### Signals and Restarts
 
 * collectors-signals:aggregating - signaled when we begin aggregating a value

@@ -20,12 +20,15 @@
    #:with-collector-output
    #:with-collectors
    #:make-collector
+   #:with-alist-output
+   #:collecting
    #:make-pusher
    #:with-reducer
    #:make-reducer
    #:with-appender
    #:with-appender-output
    #:make-appender
+   #:appending
    #:with-string-builder
    #:with-string-builder-output
    #:make-string-builder
@@ -400,6 +403,39 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
     ,@body
     (,name)))
 
+(defmacro with-alist ((name &key place (collect-nil T) initial-value from-end) &body body)
+  "Bind NAME to a collector function and execute BODY. If
+  FROM-END is true the collector will actually be a pusher, (see
+  MAKE-PUSHER), otherwise NAME will be bound to a collector,
+  (see MAKE-COLLECTOR).
+    (with-collector (col)
+       (col 1)
+       (col 2)
+       (col 3)
+       (col)) => (1 2 3)
+  "
+  `(let ((,name (,(if from-end
+                      'make-pusher
+                      'make-collector)
+                 :initial-value (or ,initial-value ,place)
+                 :collect-nil ,collect-nil
+                 :place-setter ,(when place `(lambda (new) (setf ,place new))))))
+    (flet ((,name (&rest items)
+             (loop for (k v) on items by #'cddr
+                   do (operate ,name (cons k v)))))
+      ,@body)))
+
+(defmacro with-alist-output ((name &key (collect-nil t) initial-value from-end place)
+                                 &body body)
+  `(with-alist (,name :collect-nil ,collect-nil
+                      :initial-value ,initial-value
+                      :from-end ,from-end
+                      :place ,place)
+    ,@body
+    (,name)))
+
+
+
 (defmacro with-collectors (names &body body)
   "Bind multiple collectors. Each element of NAMES should be a
   list as per WITH-COLLECTOR's first orgument."
@@ -599,6 +635,27 @@ This form returns the result of that formatter"
       (map-aggregation (,col (lambda ,fn-args ,@fn-body))
         (flet ((,name (&rest ,flet-args) (apply ,col ,flet-args)))
           ,@body)))))
+
+(defmacro collecting ((arg list) &body body)
+  "A mapping collecting macro for operating on elements of a list
+   (similar to (mapcar (lambda (,arg) ,@body) list), but using a collector
+    so all signals are in place)"
+  `(with-collector-output (output)
+    (dolist (,arg (alexandria:ensure-list ,list))
+      (restart-case
+          (output (progn ,@body))
+        (skip () "Skip this element"))
+      )))
+
+(defmacro appending ((arg list) &body body)
+  "A mapping collecting macro for operating on elements of a list
+   (similar to (mapcan (lambda (,arg) ,@body) list), but using a collector
+    so all signals are in place)"
+  `(with-appender-output (output)
+    (dolist (,arg (alexandria:ensure-list ,list))
+      (restart-case
+          (output (progn ,@body))
+        (skip () "Skip this element")))))
 
 
 
