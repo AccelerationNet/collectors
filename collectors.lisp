@@ -404,16 +404,6 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
     (,name)))
 
 (defmacro with-alist ((name &key place (collect-nil T) initial-value from-end) &body body)
-  "Bind NAME to a collector function and execute BODY. If
-  FROM-END is true the collector will actually be a pusher, (see
-  MAKE-PUSHER), otherwise NAME will be bound to a collector,
-  (see MAKE-COLLECTOR).
-    (with-collector (col)
-       (col 1)
-       (col 2)
-       (col 3)
-       (col)) => (1 2 3)
-  "
   `(let ((,name (,(if from-end
                       'make-pusher
                       'make-collector)
@@ -422,8 +412,9 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
                  :place-setter ,(when place `(lambda (new) (setf ,place new))))))
     (flet ((,name (&rest items)
              (loop for (k v) on items by #'cddr
-                   do (operate ,name (cons k v)))))
-      ,@body)))
+                   do (operate ,name (list (cons k v))))
+             (value ,name)))
+    ,@body)))
 
 (defmacro with-alist-output ((name &key (collect-nil t) initial-value from-end place)
                                  &body body)
