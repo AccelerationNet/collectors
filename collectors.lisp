@@ -153,7 +153,11 @@
 
 ;; ACL was throwing errors about this not being finalized (seems odd) re github #3
 ;; https://github.com/AccelerationNet/collectors/issues/3
+;; Fix it by: https://www.mail-archive.com/closer-devel@common-lisp.net/msg00169.html
+(closer-mop:ensure-finalized (find-class 'closer-mop:standard-object))
+(closer-mop:ensure-finalized (find-class 'closer-mop:standard-class))
 (closer-mop:ensure-finalized (find-class 'closer-mop:funcallable-standard-object))
+(closer-mop:ensure-finalized (find-class 'closer-mop:funcallable-standard-class))
 
 (defclass value-aggregator (closer-mop:funcallable-standard-object)
   ((initial-value :accessor initial-value :initarg :initial-value :initform nil)
