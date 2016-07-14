@@ -3,7 +3,7 @@
 (cl:defpackage :collectors-signals
   (:export
    ;; signals and restarts
-   #:aggregating #:skip #:new-value #:value #:aggregator
+   #:aggregating #:skip #:new-value #:value #:aggregator #:after-values
    #:done-aggregating #:aggregate))
 
 (cl:defpackage :collectors
@@ -53,7 +53,10 @@
       :initarg :aggregator :initform nil)))
 
   (define-condition collectors-signals:done-aggregating ()
-    ((collectors-signals:aggregate
+    ((collectors-signals:after-values
+      :accessor collectors-signals:after-values
+      :initarg :after-values :initform nil)
+     (collectors-signals:aggregate
          :accessor collectors-signals:aggregate
          :initarg :aggregate :initform nil)
      (collectors-signals:aggregator

@@ -12,6 +12,8 @@
    pulled from arnesi into its own library and stripped of dependencies"
   :licence "BSD"
   :version "0.1"
+  :author "Marco Baringer, Russ Tyndall <russ@acceleration.net>"
+  :maintainer "Russ Tyndall <russ@acceleration.net>"
   :components ((:file "collectors"))
   :depends-on (:alexandria :closer-mop))
 
@@ -20,6 +22,8 @@
    pulled from arnesi into its own library"
   :licence "BSD"
   :version "0.1"
+  :author "Marco Baringer, Russ Tyndall <russ@acceleration.net>"
+  :maintainer "Russ Tyndall <russ@acceleration.net>"
   :components ((:module :tests
 			:serial t
 			:components ((:file "collectors"))))
