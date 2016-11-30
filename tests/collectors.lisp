@@ -205,7 +205,7 @@
         ))))
 
 (define-test simple-collectors-init-test (:tags '(collector place initial-value))
-  (let* ((as) (bs 2) (cs '(1 2))
+  (let* ((as) (bs 2) (cs (list 1 2))
          (a (collectors:make-simple-collector-to-place as))
          (b (collectors:make-simple-collector-to-place bs))
          (c (collectors:make-simple-collector-to-place cs)))
@@ -220,4 +220,37 @@
 
     (assert-equal '(1 2 :c :c) cs)
     (assert-equal '(1 2 :c :c) (funcall c))
+    ))
+
+
+(define-test collector-macros-push (:tags '(collector push macros))
+  (with-collector (it)
+    (push-it 1)
+    (push-it 2)
+    (assert-equal '(5 4 3 2 1 ) (push-it 3 4 5))
+    (assert-equal (it) '(5 4 3 2 1))
+    ))
+
+(define-test collector-macros-pop (:tags '(collector pop macros))
+  (with-collector (it)
+    (it 1 2 3 4 5 6)
+    (assert-equal 1 (pop-it))
+    (assert-equal '(2 3 4) (pop-it 3))
+    (assert-equal '(5 6) (it))
+    ))
+
+(define-test collector-macros-enqueu (:tags '(collector enqueue macros))
+  (with-collector (it)
+    (enqueue-it 1)
+    (enqueue-it 2)
+    (assert-equal '(1 2 3 4 5) (enqueue-it 3 4 5))
+    (assert-equal (it) '(1 2 3 4 5))
+    ))
+
+(define-test collector-macros-unenqueue (:tags '(collector unenqueue macros))
+  (with-collector (it)
+    (it 1 2 3 4 5 6)
+    (assert-equal 6 (unenqueue-it))
+    (assert-equal '(4 5) (unenqueue-it 2))
+    (assert-equal '(1 2 3) (it))
     ))

@@ -92,7 +92,8 @@
         (let ((c (cons ,a nil)))
           (when (null ,head-place) (setf ,head-place c))
           (unless (null ,tail-place) (setf (cdr ,tail-place) c))
-          (setf ,tail-place c))))))
+          (setf ,tail-place c)
+          )))))
 
 (defmacro append-at-end (head-place tail-place values-place)
   "Macros to ease efficient collection (with appending) at the end of a list"
@@ -289,10 +290,63 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
    :collect-nil? collect-nil
    :place-setter place-setter))
 
-(defmethod operate ((o pusher) values)
+(defmethod %push ((o list-aggregator) values)
   (dolist (v (alexandria:ensure-list values))
     (with-signal-context (v (value o) o)
-      (push v (value o)))))
+      (push v (value o))
+      (when (and (typep o 'collector) (null (tail o)))
+        (setf (tail o) (value o)))))
+  (value o))
+
+(defmethod %pop-n ((o list-aggregator) &optional (n 1))
+  (let* ((head (value o))
+         (len (length head)))
+    (cond
+      ((>= n len)
+       (setf (value o) nil)
+       (when (typep o 'collector)
+         (setf (tail o) nil)))
+      (t (let ((lastcons (nthcdr (- n 1) head)))
+           (setf (value o) (cdr lastcons)
+                 (cdr lastcons) nil))))
+    (if (= 1 n)
+        (car head)
+        head)))
+
+(defmethod %unenqueue-n ((o list-aggregator) &optional (n 1))
+  (let* ((head (value o))
+         (len (length head))
+         (div (- len (+ 1 n)))
+         (rtn (cond
+                ((plusp div)
+                 (let* ((c (nthcdr div head))
+                        (rtn (cdr c)))
+                   (setf (cdr c) nil)
+                   (when (typep o 'collector)
+                     (setf (tail o) c))
+                   rtn))
+                (t
+                 (setf (value o) nil)
+                 (when (typep o 'collector)
+                   (setf (tail o) nil))
+                 head))))
+    (if (= 1 n)
+        (car rtn)
+        rtn)))
+
+(defmethod %enqueue ((o list-aggregator) values
+                     &aux (last (last (value o))))
+  (collect-at-end-with-signals
+   (value o) last values o (value o))
+  (value o))
+
+(defmethod %enqueue ((o collector) values)
+  (collect-at-end-with-signals
+   (value o) (tail o) values o (value o))
+  (value o))
+
+(defmethod operate ((o pusher) values)
+  (%push o values))
 
 (defclass collector (list-aggregator)
   ((tail :accessor tail :initarg :tail :initform nil))
@@ -307,7 +361,7 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
   (setf (tail o) (last (value o))))
 
 (defmethod operate ((o collector) values)
-  (collect-at-end-with-signals (value o) (tail o) values o (value o)))
+  (%enqueue o values))
 
 (defmethod deoperate ((o list-aggregator) to-remove
                       &key test key
@@ -398,7 +452,20 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
                  :initial-value (or ,initial-value ,place)
                  :collect-nil ,collect-nil
                  :place-setter ,(when place `(lambda (new) (setf ,place new))))))
-    (flet ((,name (&rest items) (operate ,name items)))
+    (flet ((,name (&rest items) (operate ,name items))
+           (,(symbol-munger:english->lisp-symbol `(push ,name))
+               (&rest items)
+             (%push ,name items))
+           (,(symbol-munger:english->lisp-symbol `(pop ,name))
+               (&optional (n 1))
+             (%pop-n ,name n))
+           (,(symbol-munger:english->lisp-symbol `(enqueue ,name))
+               (&rest items)
+             (%enqueue ,name items))
+           (,(symbol-munger:english->lisp-symbol `(unenqueue ,name))
+               (&optional (n 1))
+             (%unenqueue-n ,name n))
+           )
       ,@body)))
 
 (defmacro with-collector-output ((name &key (collect-nil t) initial-value from-end place)
