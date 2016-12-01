@@ -15,7 +15,7 @@
   :author "Marco Baringer, Russ Tyndall <russ@acceleration.net>"
   :maintainer "Russ Tyndall <russ@acceleration.net>"
   :components ((:file "collectors"))
-  :depends-on (:alexandria :closer-mop))
+  :depends-on (:alexandria :closer-mop :symbol-munger))
 
 (defsystem :collectors-test
   :description "A library providing various collector type macros

@@ -61,7 +61,7 @@
          :initarg :aggregate :initform nil)
      (collectors-signals:aggregator
       :accessor collectors-signals:aggregator
-      :initarg :aggregator :initform nil)))
+      :initarg :aggregator :initform nil)))  
 
   (defmacro with-signal-context ((value after-values aggregator) &body body)
     (alexandria:with-unique-names (new-value)
@@ -151,6 +151,98 @@
   (let ((head initial-value))
     (make-simple-appender-to-place head)))
 
+(defclass value-aggregator (closer-mop:funcallable-standard-object)
+  ((initial-value :accessor initial-value :initarg :initial-value :initform nil)
+   (place-setter :accessor place-setter :initarg :place-setter :initform nil)
+   (value :accessor value :initarg :value :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defclass list-aggregator (value-aggregator)
+  ((collect-nil? :accessor collect-nil? :initarg :collect-nil? :initform t
+    :documentation "Should we collect nil into our results")
+   (new-only-test :accessor new-only-test :initarg :new-only-test :initform nil
+    :documentation "If supplied with a new-only-test, we will verify that we
+     have not already collected this item before collecting again")
+   (new-only-key :accessor new-only-key :initarg :new-only-key :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defclass collector (list-aggregator)
+  ((tail :accessor tail :initarg :tail :initform nil))
+  (:documentation "Create a collector function.
+   A Collector function will collect, into a list, all the values
+   passed to it in the order in which they were passed. If the
+   callector function is called without arguments it returns the
+   current list of values.")
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defclass reducer (value-aggregator)
+  ((operation :accessor operation :initarg :operation :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class)
+  (:documentation
+   "Create a function which, starting with INITIAL-VALUE, reduces
+any other values into a single final value.
+
+OPERATION will be called with two values: the current value and
+the new value, in that order. OPERATION should return exactly one
+value.
+
+The reducing function can be called with n arguments which will
+be applied to OPERATION one after the other (left to right) and
+will return the new value.
+
+If the reducing function is called with no arguments it will
+return the current value.
+
+Example:
+
+ (setf r (make-reducer #'+ 5))
+ (funcall r 0) => 5
+ (funcall r 1 2) => 8
+ (funcall r) => 8"))
+
+(defclass pusher (list-aggregator)
+  ()
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defclass appender (collector)
+  ()
+  (:documentation "Create an appender function.
+
+   An Appender will append any arguments into a list, all the values
+   passed to it in the order in which they were passed. If the
+   appender function is called without arguments it returns the
+   current list of values.")
+  (:metaclass closer-mop:funcallable-standard-class))
+
+(defclass string-formatter (value-aggregator)
+  ((delimiter :accessor delimiter :initarg :delimiter :initform nil)
+   (has-written? :accessor has-written? :initarg :has-written? :initform nil)
+   (output-stream :accessor output-stream :initarg :output-stream :initform nil)
+   (pretty? :accessor pretty? :initarg :pretty? :initform nil))
+  (:metaclass closer-mop:funcallable-standard-class)
+  (:documentation
+   "Create a string formatter collector function.
+
+creates a (lambda &optional format-string &rest args) and collects these in a list
+When called with no args, returns the concatenated (with delimiter) results
+
+binds *print-pretty* to nil
+"))
+
+(defclass string-builder (string-formatter)
+  ((ignore-empty-strings-and-nil?
+    :accessor ignore-empty-strings-and-nil? :initarg :ignore-empty-strings-and-nil? :initform t))
+  (:metaclass closer-mop:funcallable-standard-class)
+  (:documentation
+   "Create a function that will build up a string for you
+   Each call to the function with arguments appends those arguments to the string
+   with an optional delimiter between them.
+
+   if ignore-empty-strings-and-nil is true neither empty strings nor nil will be
+   printed to the stream
+
+   A call to the function with no arguments returns the output string"))
+
 ;;;; * Reducing and Collecting
 
 ;;;; ** Reducing
@@ -163,11 +255,7 @@
 (closer-mop:ensure-finalized (find-class 'closer-mop:funcallable-standard-object))
 (closer-mop:ensure-finalized (find-class 'closer-mop:funcallable-standard-class))
 
-(defclass value-aggregator (closer-mop:funcallable-standard-object)
-  ((initial-value :accessor initial-value :initarg :initial-value :initform nil)
-   (place-setter :accessor place-setter :initarg :place-setter :initform nil)
-   (value :accessor value :initarg :value :initform nil))
-  (:metaclass closer-mop:funcallable-standard-class))
+
 (defmethod initialize-instance :after ((o value-aggregator) &key &allow-other-keys)
   (setf (value o) (typecase (initial-value o)
                     (list (copy-list (initial-value o)))
@@ -206,31 +294,6 @@
       (call-next-method)
       (value o))))
 
-(defclass reducer (value-aggregator)
-  ((operation :accessor operation :initarg :operation :initform nil))
-  (:metaclass closer-mop:funcallable-standard-class)
-  (:documentation
-   "Create a function which, starting with INITIAL-VALUE, reduces
-any other values into a single final value.
-
-OPERATION will be called with two values: the current value and
-the new value, in that order. OPERATION should return exactly one
-value.
-
-The reducing function can be called with n arguments which will
-be applied to OPERATION one after the other (left to right) and
-will return the new value.
-
-If the reducing function is called with no arguments it will
-return the current value.
-
-Example:
-
- (setf r (make-reducer #'+ 5))
- (funcall r 0) => 5
- (funcall r 1 2) => 8
- (funcall r) => 8"))
-
 
 (defmethod operate ((o reducer) values)
   (dolist (v (alexandria:ensure-list values))
@@ -259,18 +322,7 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
       (flet ((,name (&rest items) (apply ,reducer items)))
         ,@body))))
 
-;;;; ** Collecting
-;;;;
-;;;; Building up a list from multiple values.
 
-(defclass list-aggregator (value-aggregator)
-  ((collect-nil? :accessor collect-nil? :initarg :collect-nil? :initform t
-    :documentation "Should we collect nil into our results")
-   (new-only-test :accessor new-only-test :initarg :new-only-test :initform nil
-    :documentation "If supplied with a new-only-test, we will verify that we
-     have not already collected this item before collecting again")
-   (new-only-key :accessor new-only-key :initarg :new-only-key :initform nil))
-  (:metaclass closer-mop:funcallable-standard-class))
 
 (defmethod should-aggregate? ((o list-aggregator) v)
   (and (or (collect-nil? o) v)
@@ -278,10 +330,6 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
            (null (member v (value o)
                          :test #'new-only-test
                          :key (or (new-only-key o) #'identity))))))
-
-(defclass pusher (list-aggregator)
-  ()
-  (:metaclass closer-mop:funcallable-standard-class))
 
 (defun make-pusher (&key initial-value collect-nil place-setter)
   (make-instance
@@ -348,15 +396,6 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
 (defmethod operate ((o pusher) values)
   (%push o values))
 
-(defclass collector (list-aggregator)
-  ((tail :accessor tail :initarg :tail :initform nil))
-  (:documentation "Create a collector function.
-   A Collector function will collect, into a list, all the values
-   passed to it in the order in which they were passed. If the
-   callector function is called without arguments it returns the
-   current list of values.")
-  (:metaclass closer-mop:funcallable-standard-class))
-
 (defmethod initialize-instance :after ((o collector) &key &allow-other-keys)
   (setf (tail o) (last (value o))))
 
@@ -391,16 +430,6 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
   (make-instance 'collector
                  :initial-value initial-value :collect-nil? collect-nil
                  :place-setter place-setter))
-
-(defclass appender (collector)
-  ()
-  (:documentation "Create an appender function.
-
-   An Appender will append any arguments into a list, all the values
-   passed to it in the order in which they were passed. If the
-   appender function is called without arguments it returns the
-   current list of values.")
-  (:metaclass closer-mop:funcallable-standard-class))
 
 (defmethod operate ((o appender) values)
   (append-at-end-with-signals (value o) (tail o) values o (values o)))
@@ -510,21 +539,6 @@ FUNCTION and INITIAL-VALUE are passed directly to MAKE-REDUCER."
       `(progn ,@body)))
 
 
-(defclass string-formatter (value-aggregator)
-  ((delimiter :accessor delimiter :initarg :delimiter :initform nil)
-   (has-written? :accessor has-written? :initarg :has-written? :initform nil)
-   (output-stream :accessor output-stream :initarg :output-stream :initform nil)
-   (pretty? :accessor pretty? :initarg :pretty? :initform nil))
-  (:metaclass closer-mop:funcallable-standard-class)
-  (:documentation
-   "Create a string formatter collector function.
-
-creates a (lambda &optional format-string &rest args) and collects these in a list
-When called with no args, returns the concatenated (with delimiter) results
-
-binds *print-pretty* to nil
-"))
-
 (defmethod initialize-instance :after ((o string-formatter) &key &allow-other-keys)
   (when (and (delimiter o) (not (stringp (delimiter o))))
     (setf (delimiter o) (princ-to-string (delimiter o))))
@@ -570,19 +584,6 @@ This form returns the result of that formatter"
      ,@body
      (,name)))
 
-(defclass string-builder (string-formatter)
-  ((ignore-empty-strings-and-nil?
-    :accessor ignore-empty-strings-and-nil? :initarg :ignore-empty-strings-and-nil? :initform t))
-  (:metaclass closer-mop:funcallable-standard-class)
-  (:documentation
-   "Create a function that will build up a string for you
-   Each call to the function with arguments appends those arguments to the string
-   with an optional delimiter between them.
-
-   if ignore-empty-strings-and-nil is true neither empty strings nor nil will be
-   printed to the stream
-
-   A call to the function with no arguments returns the output string"))
 
 (defmethod should-aggregate? ((o string-builder) v
                               &aux (collect-empty? (not (ignore-empty-strings-and-nil? o))))
