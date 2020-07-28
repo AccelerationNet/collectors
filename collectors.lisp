@@ -264,7 +264,7 @@ binds *print-pretty* to nil
    o (lambda (&rest values) (operate o values))))
 
 (defgeneric should-aggregate? (aggregator value)
-  (:method ((o value-aggregator) v) t)
+  (:method ((o value-aggregator) v) (declare (ignore v)) t)
   (:documentation "Should we aggregate a given value into our collection"))
 
 (defgeneric deoperate (aggregator values &key test key)
