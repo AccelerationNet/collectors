@@ -1,13 +1,6 @@
 ;; -*- lisp -*-
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (unless (find-package :collectors.system)
-    (defpackage :collectors.system
-	(:use :common-lisp :asdf))))
-
-(in-package collectors.system)
-
-(defsystem :collectors
+(defsystem "collectors"
   :description "A library providing various collector type macros
    pulled from arnesi into its own library and stripped of dependencies"
   :licence "BSD"
@@ -15,9 +8,16 @@
   :author "Marco Baringer, Russ Tyndall <russ@acceleration.net>"
   :maintainer "Russ Tyndall <russ@acceleration.net>"
   :components ((:file "collectors"))
-  :depends-on (:alexandria :closer-mop :symbol-munger))
+  :depends-on ("alexandria" "closer-mop" "symbol-munger")
+  :in-order-to ((test-op (load-op "collectors/test")))
+  :perform (test-op (op c)
+             (let ((*package* (find-package :collectors-test)))
+               (eval (read-from-string "
+                 (run-tests :package :collectors-test
+                    :name :collectors
+                    :run-contexts #'with-summary-context)")))))
 
-(defsystem :collectors-test
+(defsystem "collectors/test"
   :description "A library providing various collector type macros
    pulled from arnesi into its own library"
   :licence "BSD"
@@ -25,17 +25,9 @@
   :author "Marco Baringer, Russ Tyndall <russ@acceleration.net>"
   :maintainer "Russ Tyndall <russ@acceleration.net>"
   :components ((:module :tests
-			:serial t
-			:components ((:file "collectors"))))
-  :depends-on (:collectors :lisp-unit2))
-
-(defmethod asdf:perform ((o asdf:test-op) (c (eql (find-system :collectors))))
-  (asdf:load-system :collectors-test)
-  (let ((*package* (find-package :collectors-test)))
-    (eval (read-from-string "
-      (run-tests :package :collectors-test
-                 :name :collectors
-                 :run-contexts #'with-summary-context)"))))
+                :serial t
+                :components ((:file "collectors"))))
+  :depends-on ("collectors" "lisp-unit2"))
 
 ;; Copyright (c) 2002-2006, Edward Marco Baringer (from arnesi lib)
 ;;               2011 Russ Tyndall , Acceleration.net http://www.acceleration.net
