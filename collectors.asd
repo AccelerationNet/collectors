@@ -4,7 +4,7 @@
   :description "A library providing various collector type macros
    pulled from arnesi into its own library and stripped of dependencies"
   :licence "BSD"
-  :version "0.1"
+  :version "1.0"
   :author "Marco Baringer, Russ Tyndall <russ@acceleration.net>"
   :maintainer "Russ Tyndall <russ@acceleration.net>"
   :components ((:file "collectors"))
@@ -21,7 +21,7 @@
   :description "A library providing various collector type macros
    pulled from arnesi into its own library"
   :licence "BSD"
-  :version "0.1"
+  :version "1.0"
   :author "Marco Baringer, Russ Tyndall <russ@acceleration.net>"
   :maintainer "Russ Tyndall <russ@acceleration.net>"
   :components ((:module :tests
